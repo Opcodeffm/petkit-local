@@ -1,45 +1,44 @@
 set_schedule:
-  name: Fütterungsplan setzen
+  name: Set feeding schedule
   description: >
-    Setzt den kompletten Fütterungsplan auf dem Feeder. Ersetzt alle vorhandenen
-    Einträge. Plan wird persistent gespeichert und bei HA-Neustart wiederhergestellt.
-    Maximal 10 Einträge pro Wochentag.
+    Replaces the complete feeding schedule on the feeder. All existing entries are overwritten.
+    The schedule is persisted and restored after HA restart. Max. 10 entries per weekday.
   fields:
     entries:
-      name: Einträge
+      name: Entries
       description: >
-        Liste von Fütterungen, jeweils mit time (HH:MM), amount (Gramm, 1-200)
-        und optional days (Liste: [1..7] oder [mon,tue,...]) und name (Label).
+        List of feedings — each with time (HH:MM), amount (grams, 1-200),
+        and optional days (list: [1..7] or [mon,tue,...]) and name.
       required: true
       example: |
         - time: "08:00"
           amount: 20
           days: [mon, tue, wed, thu, fri, sat, sun]
-          name: Morgens
+          name: Morning
         - time: "18:30"
           amount: 15
           days: [mon, tue, wed, thu, fri]
-          name: Abends
+          name: Evening
       selector:
         object:
 
 clear_schedule:
-  name: Fütterungsplan löschen
-  description: Entfernt alle Einträge aus dem Fütterungsplan.
+  name: Clear feeding schedule
+  description: Removes all entries from the feeding schedule.
 
 reset_desiccant:
-  name: Trockenmittel zurücksetzen
+  name: Reset desiccant
   description: >
-    Setzt den Trockenmittel-Counter zurück (nach Wechsel des Silica-Gel-Pakets).
-    Neue Laufzeit 30 Tage. Wird persistent gespeichert.
+    Resets the desiccant counter (after replacing the silica gel pack).
+    New lifetime: 30 days. Persisted across restarts.
 
 feed:
-  name: Manuell füttern
-  description: Gibt eine Futter-Portion frei (wird beim nächsten Heartbeat ausgeführt).
+  name: Feed manually
+  description: Dispenses a portion of food (executed on the next heartbeat).
   fields:
     amount:
-      name: Menge (g)
-      description: Futtermenge in Gramm (1-200).
+      name: Amount (g)
+      description: Food amount in grams (1-200).
       required: true
       example: 10
       default: 10
