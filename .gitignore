@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# HA test artifacts
+config/
+home-assistant.log
+home-assistant_v2.db*
+
+# Dev-only notes not meant for the repo
+NOTES.local.md
+SCRATCH/

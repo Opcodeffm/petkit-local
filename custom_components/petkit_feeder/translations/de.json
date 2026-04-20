@@ -1,0 +1,108 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Petkit Feeder Local",
+        "description": "Komplett lokale Integration — der Futterautomat verbindet sich automatisch. Einfach bestätigen.",
+        "data": {
+          "device_name": "Gerätename"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fütterungsplan bearbeiten",
+        "description": "Aktuelle Einträge:\n\n{plan}\n\nMax. 10 Einträge pro Wochentag."
+      },
+      "add": {
+        "title": "Eintrag hinzufügen",
+        "description": "Neuen Fütterungs-Zeitpunkt anlegen.\n\nAktueller Plan:\n{plan}",
+        "data": {
+          "time": "Uhrzeit",
+          "amount": "Menge (g)",
+          "days": "Wochentage",
+          "name": "Name (optional)"
+        }
+      },
+      "delete": {
+        "title": "Eintrag entfernen",
+        "description": "Welchen Eintrag löschen?",
+        "data": {
+          "index": "Eintrag"
+        }
+      }
+    },
+    "abort": {
+      "invalid_schedule": "Der Plan ist ungültig (z.B. mehr als 10 Einträge pro Tag). Nichts gespeichert."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "food_container": { "name": "Futterbehälter" },
+      "desiccant_days_left": { "name": "Trockenmittel Tage übrig" },
+      "feedings_today": { "name": "Fütterungen heute" },
+      "food_amount_today": { "name": "Futtermenge heute" },
+      "battery": { "name": "Batterie" },
+      "battery_status": { "name": "Batteriestatus" },
+      "power_source": { "name": "Stromquelle" },
+      "firmware": { "name": "Firmware" },
+      "wifi_signal": { "name": "WiFi Signal" },
+      "last_heartbeat": { "name": "Letzter Heartbeat" },
+      "uptime": { "name": "Laufzeit (Feeder)" },
+      "heartbeat_count": { "name": "Heartbeat-Count" },
+      "battery_voltage": { "name": "Batteriespannung" },
+      "heap_free": { "name": "RAM frei" },
+      "feed_schedule": { "name": "Fütterungsplan" }
+    },
+    "binary_sensor": {
+      "online": { "name": "Verbindung" },
+      "motor_error": { "name": "Motor-Fehler" },
+      "rtc_error": { "name": "RTC-Fehler" },
+      "ir_sensor_error": { "name": "IR-Sensor-Fehler" },
+      "dc_error": { "name": "DC-Fehler" }
+    },
+    "button": {
+      "feed_1_portion": { "name": "Füttern 1 Portion" },
+      "feed_2_portions": { "name": "Füttern 2 Portionen" },
+      "feed_5_portions": { "name": "Füttern 5 Portionen" },
+      "reset_desiccant": { "name": "Trockenmittel zurücksetzen" }
+    },
+    "switch": {
+      "feed_sound": { "name": "Fütterungston" },
+      "manual_lock": { "name": "Tastensperre" },
+      "light_mode": { "name": "LED-Anzeige" }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Fütterungsplan setzen",
+      "description": "Setzt den kompletten Fütterungsplan auf dem Feeder. Überlebt HA-Neustart. Max. 10 Einträge pro Wochentag.",
+      "fields": {
+        "entries": {
+          "name": "Einträge",
+          "description": "Liste von Fütterungen — jeweils mit time (HH:MM), amount (Gramm, 1-200), optional days und name."
+        }
+      }
+    },
+    "clear_schedule": {
+      "name": "Fütterungsplan löschen",
+      "description": "Entfernt alle Einträge aus dem Fütterungsplan."
+    },
+    "feed": {
+      "name": "Manuell füttern",
+      "description": "Gibt eine Futter-Portion beim nächsten Heartbeat aus.",
+      "fields": {
+        "amount": {
+          "name": "Menge (g)",
+          "description": "Futtermenge in Gramm (1-200)."
+        }
+      }
+    },
+    "reset_desiccant": {
+      "name": "Trockenmittel zurücksetzen",
+      "description": "Setzt den Trockenmittel-Counter zurück (nach Wechsel des Silica-Gel-Pakets)."
+    }
+  }
+}

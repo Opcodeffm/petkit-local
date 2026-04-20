@@ -1,0 +1,51 @@
+set_schedule:
+  name: Fütterungsplan setzen
+  description: >
+    Setzt den kompletten Fütterungsplan auf dem Feeder. Ersetzt alle vorhandenen
+    Einträge. Plan wird persistent gespeichert und bei HA-Neustart wiederhergestellt.
+    Maximal 10 Einträge pro Wochentag.
+  fields:
+    entries:
+      name: Einträge
+      description: >
+        Liste von Fütterungen, jeweils mit time (HH:MM), amount (Gramm, 1-200)
+        und optional days (Liste: [1..7] oder [mon,tue,...]) und name (Label).
+      required: true
+      example: |
+        - time: "08:00"
+          amount: 20
+          days: [mon, tue, wed, thu, fri, sat, sun]
+          name: Morgens
+        - time: "18:30"
+          amount: 15
+          days: [mon, tue, wed, thu, fri]
+          name: Abends
+      selector:
+        object:
+
+clear_schedule:
+  name: Fütterungsplan löschen
+  description: Entfernt alle Einträge aus dem Fütterungsplan.
+
+reset_desiccant:
+  name: Trockenmittel zurücksetzen
+  description: >
+    Setzt den Trockenmittel-Counter zurück (nach Wechsel des Silica-Gel-Pakets).
+    Neue Laufzeit 30 Tage. Wird persistent gespeichert.
+
+feed:
+  name: Manuell füttern
+  description: Gibt eine Futter-Portion frei (wird beim nächsten Heartbeat ausgeführt).
+  fields:
+    amount:
+      name: Menge (g)
+      description: Futtermenge in Gramm (1-200).
+      required: true
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 200
+          step: 1
+          unit_of_measurement: g

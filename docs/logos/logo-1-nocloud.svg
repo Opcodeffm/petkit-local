@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Logo 1: "No Cloud" — emphasizes freedom from cloud dependency -->
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#g1)"/>
+
+  <!-- Cloud with slash (no-cloud) -->
+  <g transform="translate(120, 88)">
+    <path d="M80 80 Q30 80 30 130 Q30 175 80 175 L220 175 Q270 175 270 130 Q270 80 220 80 Q210 45 170 45 Q130 45 115 75 Q95 75 80 80 Z"
+          fill="white" opacity="0.25"/>
+    <!-- Slash -->
+    <line x1="15" y1="40" x2="285" y2="190" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  </g>
+
+  <!-- Feeder (bottom) — stylized silo + chute + bowl -->
+  <g transform="translate(156, 250)" fill="white">
+    <!-- Silo body -->
+    <rect x="40" y="0" width="120" height="130" rx="18"/>
+    <!-- Chute -->
+    <path d="M70 125 L130 125 L110 160 L90 160 Z"/>
+    <!-- Pellets -->
+    <circle cx="100" cy="175" r="5"/>
+    <circle cx="85" cy="185" r="4"/>
+    <circle cx="115" cy="188" r="4"/>
+    <!-- Bowl -->
+    <path d="M40 195 Q100 230 160 195 L150 220 Q100 240 50 220 Z"/>
+  </g>
+
+  <!-- Small "LOCAL" pill -->
+  <g transform="translate(186, 445)">
+    <rect x="0" y="0" width="140" height="32" rx="16" fill="white" opacity="0.9"/>
+    <text x="70" y="22" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
+          font-size="16" font-weight="700" fill="#059669" letter-spacing="2">LOCAL</text>
+  </g>
+</svg>

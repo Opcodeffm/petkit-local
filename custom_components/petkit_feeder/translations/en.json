@@ -1,0 +1,108 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Petkit Feeder Local",
+        "description": "Fully local integration — the feeder auto-registers on first heartbeat. Just confirm.",
+        "data": {
+          "device_name": "Device name"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit feeding schedule",
+        "description": "Current entries:\n\n{plan}\n\nMax. 10 entries per weekday."
+      },
+      "add": {
+        "title": "Add entry",
+        "description": "Create a new feeding time.\n\nCurrent schedule:\n{plan}",
+        "data": {
+          "time": "Time",
+          "amount": "Amount (g)",
+          "days": "Weekdays",
+          "name": "Name (optional)"
+        }
+      },
+      "delete": {
+        "title": "Remove entry",
+        "description": "Which entry should be removed?",
+        "data": {
+          "index": "Entry"
+        }
+      }
+    },
+    "abort": {
+      "invalid_schedule": "Schedule is invalid (e.g. more than 10 entries per day). Nothing saved."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "food_container": { "name": "Food container" },
+      "desiccant_days_left": { "name": "Desiccant days left" },
+      "feedings_today": { "name": "Feedings today" },
+      "food_amount_today": { "name": "Food dispensed today" },
+      "battery": { "name": "Battery" },
+      "battery_status": { "name": "Battery status" },
+      "power_source": { "name": "Power source" },
+      "firmware": { "name": "Firmware" },
+      "wifi_signal": { "name": "WiFi signal" },
+      "last_heartbeat": { "name": "Last heartbeat" },
+      "uptime": { "name": "Feeder uptime" },
+      "heartbeat_count": { "name": "Heartbeat count" },
+      "battery_voltage": { "name": "Battery voltage" },
+      "heap_free": { "name": "Free RAM" },
+      "feed_schedule": { "name": "Feeding schedule" }
+    },
+    "binary_sensor": {
+      "online": { "name": "Connection" },
+      "motor_error": { "name": "Motor error" },
+      "rtc_error": { "name": "RTC error" },
+      "ir_sensor_error": { "name": "IR sensor error" },
+      "dc_error": { "name": "DC error" }
+    },
+    "button": {
+      "feed_1_portion": { "name": "Feed 1 portion" },
+      "feed_2_portions": { "name": "Feed 2 portions" },
+      "feed_5_portions": { "name": "Feed 5 portions" },
+      "reset_desiccant": { "name": "Reset desiccant" }
+    },
+    "switch": {
+      "feed_sound": { "name": "Feeding sound" },
+      "manual_lock": { "name": "Key lock" },
+      "light_mode": { "name": "LED display" }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Set feeding schedule",
+      "description": "Replaces the complete feeding schedule on the feeder. Persisted across HA restarts. Max 10 entries per weekday.",
+      "fields": {
+        "entries": {
+          "name": "Entries",
+          "description": "List of feeding times — each with time (HH:MM), amount (grams, 1-200), optional days and name."
+        }
+      }
+    },
+    "clear_schedule": {
+      "name": "Clear feeding schedule",
+      "description": "Removes all entries from the feeding schedule."
+    },
+    "feed": {
+      "name": "Feed manually",
+      "description": "Dispenses a portion of food on the next heartbeat.",
+      "fields": {
+        "amount": {
+          "name": "Amount (g)",
+          "description": "Amount in grams (1-200)."
+        }
+      }
+    },
+    "reset_desiccant": {
+      "name": "Reset desiccant",
+      "description": "Resets the desiccant counter after replacing the silica gel pack."
+    }
+  }
+}

@@ -1,0 +1,126 @@
+# Lovelace Dashboard Card für Petkit Feeder Local
+#
+# Zum Einfügen:
+#   1. In HA: Einstellungen → Dashboards → dein Dashboard → rechts oben "Bearbeiten"
+#   2. "+ Karte hinzufügen" → ganz unten "Manuell"
+#   3. Den YAML-Block unten einfügen (ohne erste Kommentar-Zeilen)
+#   4. Fertig. Zum Plan bearbeiten: Einstellungen → Geräte & Dienste → Petkit Feeder → "Konfigurieren"
+#
+# Die Card zeigt:
+#   - aktuellen Fütterungsplan (Text + Anzahl Einträge)
+#   - Status (Online/Offline, Stromquelle, Batterie)
+#   - Trockenmittel (mit Reset-Button)
+#   - Fütterungen/Menge heute
+#   - Schnellbuttons für Portionen
+#   - Switches (LED, Ton, Tastensperre)
+#   - Link zum Plan-Editor (Options-Flow)
+
+type: vertical-stack
+cards:
+  # --- Status + Plan ---
+  - type: entities
+    title: Petkit Futterautomat
+    show_header_toggle: false
+    entities:
+      - entity: binary_sensor.futterautomat_verbindung
+        name: Status
+        icon: mdi:cloud-check
+      - entity: sensor.futterautomat_firmware
+        name: Firmware
+      - type: section
+        label: Fütterungsplan
+      - entity: sensor.futterautomat_futterungsplan
+        name: Plan
+        icon: mdi:calendar-clock
+      - type: call-service
+        name: Plan bearbeiten
+        icon: mdi:pencil
+        service: null  # dummy, will be overridden by tap_action
+        tap_action:
+          action: navigate
+          navigation_path: /config/integrations/integration/petkit_feeder
+      - type: section
+        label: Heute
+      - entity: sensor.futterautomat_futterungen_heute
+        name: Fütterungen
+        icon: mdi:counter
+      - entity: sensor.futterautomat_futtermenge_heute
+        name: Menge
+        icon: mdi:scale
+
+  # --- Schnell füttern ---
+  - type: horizontal-stack
+    cards:
+      - type: button
+        entity: button.futterautomat_futtern_1_portion
+        name: "1× (10g)"
+        icon: mdi:food-drumstick
+        show_state: false
+        tap_action:
+          action: call-service
+          service: button.press
+          target:
+            entity_id: button.futterautomat_futtern_1_portion
+      - type: button
+        entity: button.futterautomat_futtern_2_portionen
+        name: "2× (20g)"
+        icon: mdi:food-drumstick
+        show_state: false
+        tap_action:
+          action: call-service
+          service: button.press
+          target:
+            entity_id: button.futterautomat_futtern_2_portionen
+      - type: button
+        entity: button.futterautomat_futtern_5_portionen
+        name: "5× (50g)"
+        icon: mdi:food-drumstick
+        show_state: false
+        tap_action:
+          action: call-service
+          service: button.press
+          target:
+            entity_id: button.futterautomat_futtern_5_portionen
+
+  # --- Zustand ---
+  - type: entities
+    title: Zustand
+    show_header_toggle: false
+    entities:
+      - entity: sensor.futterautomat_futterbehalter
+        name: Futterbehälter
+        icon: mdi:silo
+      - entity: sensor.futterautomat_trockenmittel_tage_ubrig
+        name: Trockenmittel
+        icon: mdi:water-opacity
+      - type: call-service
+        name: Trockenmittel gewechselt
+        icon: mdi:restart
+        service: petkit_feeder.reset_desiccant
+
+  # --- Strom + WiFi ---
+  - type: entities
+    title: Strom & Verbindung
+    show_header_toggle: false
+    entities:
+      - entity: sensor.futterautomat_stromquelle
+        name: Stromquelle
+      - entity: sensor.futterautomat_batteriestatus
+        name: Batteriestatus
+      - entity: sensor.futterautomat_batterie
+        name: Batterie-Level
+      - entity: sensor.futterautomat_wifi_signal
+        name: WiFi
+      # Laufzeit ist jetzt Diagnostic — steht auf der Geräte-Seite unter "Diagnose"
+
+  # --- Geräteeinstellungen ---
+  - type: entities
+    title: Einstellungen
+    show_header_toggle: false
+    entities:
+      - entity: switch.futterautomat_led_anzeige
+        name: LED-Anzeige
+      - entity: switch.futterautomat_futterungston
+        name: Fütterungston
+      - entity: switch.futterautomat_tastensperre
+        name: Tastensperre

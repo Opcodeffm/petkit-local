@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Logo 2: "Home-Feeder" — HA-style house with feeder + bowl inside -->
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#1e40af"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#g2)"/>
+
+  <!-- HA-style house outline -->
+  <g transform="translate(90, 105)" stroke="white" stroke-width="14" stroke-linejoin="round" fill="none">
+    <path d="M166 0 L332 120 L332 300 L0 300 L0 120 Z"/>
+    <!-- Door frame (little chimney accent) -->
+    <path d="M250 0 L250 50 L290 50 L290 45" stroke-linecap="round"/>
+  </g>
+
+  <!-- Feeder + bowl inside house -->
+  <g transform="translate(180, 200)" fill="white">
+    <!-- Silo -->
+    <rect x="30" y="0" width="90" height="100" rx="14"/>
+    <!-- Chute -->
+    <path d="M55 98 L95 98 L80 128 L70 128 Z"/>
+    <!-- Pellets falling -->
+    <circle cx="75" cy="140" r="4"/>
+    <circle cx="70" cy="152" r="3"/>
+    <circle cx="82" cy="150" r="3"/>
+    <!-- Bowl -->
+    <path d="M18 158 Q75 190 132 158 L120 185 Q75 205 30 185 Z"/>
+  </g>
+
+  <!-- WiFi arc (local) -->
+  <g transform="translate(370, 345)" stroke="white" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M0 35 Q17 20 35 35"/>
+    <path d="M-12 42 Q17 10 47 42"/>
+    <circle cx="17" cy="45" r="5" fill="white" stroke="none"/>
+  </g>
+
+  <!-- Tagline -->
+  <g transform="translate(0, 460)">
+    <text x="256" y="0" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
+          font-size="28" font-weight="700" fill="white" letter-spacing="6">PETKIT LOCAL</text>
+  </g>
+</svg>

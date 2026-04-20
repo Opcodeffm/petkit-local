@@ -1,0 +1,13 @@
+{
+  "domain": "petkit_feeder",
+  "name": "Petkit Feeder Local",
+  "codeowners": ["@Opcodeffm"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Opcodeffm/petkit-feeder-local",
+  "issue_tracker": "https://github.com/Opcodeffm/petkit-feeder-local/issues",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "2.0.0",
+  "integration_type": "device"
+}
