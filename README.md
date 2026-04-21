@@ -72,24 +72,32 @@ the unit runs indefinitely without any of that data leaving the house.
 
 ## Screenshots
 
-<table>
-<tr>
-<td width="50%" valign="top">
-<img src="docs/images/devices.png" alt="Device page with all entities"><br>
-<em>Full device view — all entities at a glance: sensors, controls, diagnostic.</em>
-<br><br>
-<img src="docs/images/lovelace.png" alt="Lovelace dashboard card"><br>
-<em>Ready-made Lovelace dashboard card (see <code>docs/dashboard_card.yaml</code>).</em>
-</td>
-<td width="50%" valign="top">
-<img src="docs/images/feederschedule.png" alt="Schedule editor menu"><br>
-<em>Schedule editor — add / remove / clear / save.</em>
-<br><br>
-<img src="docs/images/addentry.png" alt="Add entry form"><br>
-<em>Add-entry form — time picker, amount slider, weekday checkboxes.</em>
-</td>
-</tr>
+<p align="center">
+  <img src="docs/images/devices.png" width="720" alt="Device page with all entities"><br>
+  <sub><em>The full device view — controls, sensors, and diagnostic entities, all grouped natively in HA.</em></sub>
+</p>
+
+<br>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/feederschedule.png" width="360" alt="Schedule editor menu"><br>
+      <sub><em>Options flow — manage the feeding plan.</em></sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/addentry.png" width="360" alt="Add entry form"><br>
+      <sub><em>Add-entry form with time picker, gram slider, weekdays.</em></sub>
+    </td>
+  </tr>
 </table>
+
+<br>
+
+<p align="center">
+  <img src="docs/images/lovelace.png" width="480" alt="Lovelace dashboard card"><br>
+  <sub><em>Optional Lovelace card — drop-in YAML in <a href="docs/dashboard_card.yaml"><code>docs/dashboard_card.yaml</code></a>.</em></sub>
+</p>
 
 ## How it works
 
