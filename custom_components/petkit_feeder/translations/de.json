@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Petkit Feeder Local",
-        "description": "Komplett lokale Integration — der Futterautomat verbindet sich automatisch. Einfach bestätigen.",
+        "description": "Komplett lokale Integration — der Futterautomat registriert sich automatisch beim ersten Heartbeat. Einfach bestätigen.",
         "data": {
           "device_name": "Gerätename"
         }
@@ -14,11 +14,17 @@
     "step": {
       "init": {
         "title": "Fütterungsplan bearbeiten",
-        "description": "Aktuelle Einträge:\n\n{plan}\n\nMax. 10 Einträge pro Wochentag."
+        "description": "Aktuelle Einträge:\n\n{plan}\n\nMax. 10 Einträge pro Wochentag.",
+        "menu_options": {
+          "add": "Eintrag hinzufügen",
+          "delete": "Eintrag entfernen",
+          "clear": "Alle löschen",
+          "save": "Speichern und schließen"
+        }
       },
       "add": {
         "title": "Eintrag hinzufügen",
-        "description": "Neuen Fütterungs-Zeitpunkt anlegen.\n\nAktueller Plan:\n{plan}",
+        "description": "Neuen Fütterungszeitpunkt anlegen.\n\nAktueller Plan:\n{plan}",
         "data": {
           "time": "Uhrzeit",
           "amount": "Menge (g)",
@@ -28,25 +34,59 @@
       },
       "delete": {
         "title": "Eintrag entfernen",
-        "description": "Welchen Eintrag löschen?",
+        "description": "Welcher Eintrag soll gelöscht werden?",
         "data": {
           "index": "Eintrag"
         }
       }
     },
     "abort": {
-      "invalid_schedule": "Der Plan ist ungültig (z.B. mehr als 10 Einträge pro Tag). Nichts gespeichert."
+      "invalid_schedule": "Plan ungültig (z.B. mehr als 10 Einträge pro Tag). Nichts gespeichert."
+    }
+  },
+  "selector": {
+    "weekday": {
+      "options": {
+        "mon": "Montag",
+        "tue": "Dienstag",
+        "wed": "Mittwoch",
+        "thu": "Donnerstag",
+        "fri": "Freitag",
+        "sat": "Samstag",
+        "sun": "Sonntag"
+      }
     }
   },
   "entity": {
     "sensor": {
-      "food_container": { "name": "Futterbehälter" },
+      "food_container": {
+        "name": "Futterbehälter",
+        "state": {
+          "ok": "Futter vorhanden",
+          "empty": "Leer"
+        }
+      },
       "desiccant_days_left": { "name": "Trockenmittel Tage übrig" },
       "feedings_today": { "name": "Fütterungen heute" },
       "food_amount_today": { "name": "Futtermenge heute" },
       "battery": { "name": "Batterie" },
-      "battery_status": { "name": "Batteriestatus" },
-      "power_source": { "name": "Stromquelle" },
+      "battery_status": {
+        "name": "Batteriestatus",
+        "state": {
+          "ok": "OK",
+          "low": "Niedrig",
+          "critical": "Kritisch",
+          "no_batteries": "Keine Batterien",
+          "on_battery": "Läuft auf Batterie"
+        }
+      },
+      "power_source": {
+        "name": "Stromquelle",
+        "state": {
+          "mains": "Netz (USB/DC)",
+          "battery": "Batterie"
+        }
+      },
       "firmware": { "name": "Firmware" },
       "wifi_signal": { "name": "WiFi Signal" },
       "last_heartbeat": { "name": "Letzter Heartbeat" },
@@ -78,11 +118,11 @@
   "services": {
     "set_schedule": {
       "name": "Fütterungsplan setzen",
-      "description": "Setzt den kompletten Fütterungsplan auf dem Feeder. Überlebt HA-Neustart. Max. 10 Einträge pro Wochentag.",
+      "description": "Ersetzt den kompletten Fütterungsplan auf dem Feeder. Wird bei HA-Neustart wiederhergestellt. Max. 10 Einträge pro Wochentag.",
       "fields": {
         "entries": {
           "name": "Einträge",
-          "description": "Liste von Fütterungen — jeweils mit time (HH:MM), amount (Gramm, 1-200), optional days und name."
+          "description": "Liste von Fütterungen — je mit time (HH:MM), amount (Gramm, 1-200), optional days und name."
         }
       }
     },
@@ -92,17 +132,17 @@
     },
     "feed": {
       "name": "Manuell füttern",
-      "description": "Gibt eine Futter-Portion beim nächsten Heartbeat aus.",
+      "description": "Gibt beim nächsten Heartbeat eine Portion frei.",
       "fields": {
         "amount": {
           "name": "Menge (g)",
-          "description": "Futtermenge in Gramm (1-200)."
+          "description": "Menge in Gramm (1-200)."
         }
       }
     },
     "reset_desiccant": {
       "name": "Trockenmittel zurücksetzen",
-      "description": "Setzt den Trockenmittel-Counter zurück (nach Wechsel des Silica-Gel-Pakets)."
+      "description": "Setzt den Trockenmittel-Counter zurück nach Wechsel des Silica-Gel-Päckchens."
     }
   }
 }

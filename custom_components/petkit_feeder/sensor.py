@@ -28,6 +28,8 @@ SENSOR_DESCRIPTIONS: list[SensorEntityDescription] = [
         key="food_state",
         translation_key="food_container",
         icon="mdi:food-drumstick",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ok", "empty"],
     ),
     SensorEntityDescription(
         key="desiccant_days_left",
@@ -61,11 +63,15 @@ SENSOR_DESCRIPTIONS: list[SensorEntityDescription] = [
         key="battery_status_text",
         translation_key="battery_status",
         icon="mdi:battery-alert",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ok", "low", "critical", "no_batteries", "on_battery"],
     ),
     SensorEntityDescription(
         key="power_source",
         translation_key="power_source",
         icon="mdi:power-plug",
+        device_class=SensorDeviceClass.ENUM,
+        options=["mains", "battery"],
     ),
 
     # --- Diagnostic sensors ---
@@ -163,7 +169,7 @@ class PetkitFeederSensor(CoordinatorEntity[PetkitFeederCoordinator], SensorEntit
         value = self.coordinator.data.get(self.entity_description.key)
         key = self.entity_description.key
         if key == "food_state":
-            # Untranslated display values — future: translate via state attributes
+            # Returns translation key — matches entity.sensor.food_container.state.{ok,empty}
             return "ok" if value == 1 else "empty"
         if key == "wifi_rssi" and value == 0:
             return None

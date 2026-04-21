@@ -14,15 +14,8 @@ from .const import DOMAIN, CONF_DEVICE_ID, CONF_DEVICE_NAME
 
 _LOGGER = logging.getLogger(__name__)
 
-DAY_OPTIONS = [
-    {"value": "mon", "label": "Montag"},
-    {"value": "tue", "label": "Dienstag"},
-    {"value": "wed", "label": "Mittwoch"},
-    {"value": "thu", "label": "Donnerstag"},
-    {"value": "fri", "label": "Freitag"},
-    {"value": "sat", "label": "Samstag"},
-    {"value": "sun", "label": "Sonntag"},
-]
+# Values only — display labels come from translations (selector.weekday.options.*)
+DAY_VALUES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
 # ----------------------------------------------------------------------
@@ -38,7 +31,7 @@ class PetkitFeederConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         if user_input is not None:
-            name = user_input.get(CONF_DEVICE_NAME, "Futterautomat")
+            name = user_input.get(CONF_DEVICE_NAME, "Petkit Feeder")
             return self.async_create_entry(
                 title=name,
                 data={
@@ -49,7 +42,7 @@ class PetkitFeederConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Optional(CONF_DEVICE_NAME, default="Futterautomat"): str,
+                vol.Optional(CONF_DEVICE_NAME, default="Petkit Feeder"): str,
             }),
         )
 
@@ -120,7 +113,7 @@ class PetkitFeederOptionsFlow(config_entries.OptionsFlow):
 
     def _summary(self) -> str:
         if not self._entries:
-            return "— Kein Eintrag —"
+            return "— no entries —"
         lines = []
         for i, e in enumerate(self._entries):
             hm = e["time"][:5]
@@ -135,15 +128,11 @@ class PetkitFeederOptionsFlow(config_entries.OptionsFlow):
     ) -> config_entries.ConfigFlowResult:
         await self._load()
 
-        # Render menu with current plan shown in description
+        # Render menu — menu_options as a list uses translation keys from
+        # strings.json → options.step.init.menu_options.*
         return self.async_show_menu(
             step_id="init",
-            menu_options={
-                "add": "Eintrag hinzufügen",
-                "delete": "Eintrag entfernen",
-                "clear": "Alle löschen",
-                "save": "Speichern und schließen",
-            },
+            menu_options=["add", "delete", "clear", "save"],
             description_placeholders={"plan": self._summary()},
         )
 
@@ -181,9 +170,10 @@ class PetkitFeederOptionsFlow(config_entries.OptionsFlow):
             vol.Required("days", default=["mon", "tue", "wed", "thu", "fri", "sat", "sun"]):
                 selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=DAY_OPTIONS,
+                        options=DAY_VALUES,
                         multiple=True,
                         mode=selector.SelectSelectorMode.LIST,
+                        translation_key="weekday",
                     )
                 ),
             vol.Optional("name", default=""): str,

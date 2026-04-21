@@ -1,58 +1,64 @@
-# Lovelace Dashboard Card für Petkit Feeder Local
+# Lovelace Dashboard Card — Petkit Feeder Local
 #
-# Zum Einfügen:
-#   1. In HA: Einstellungen → Dashboards → dein Dashboard → rechts oben "Bearbeiten"
-#   2. "+ Karte hinzufügen" → ganz unten "Manuell"
-#   3. Den YAML-Block unten einfügen (ohne erste Kommentar-Zeilen)
-#   4. Fertig. Zum Plan bearbeiten: Einstellungen → Geräte & Dienste → Petkit Feeder → "Konfigurieren"
+# How to use:
+#   1. HA → Settings → Dashboards → pick a dashboard → "Edit" (top right)
+#   2. "+ ADD CARD" → scroll down → "Manual"
+#   3. Paste the YAML block below (starting at "type: vertical-stack")
+#   4. Done. To edit the schedule: Settings → Devices & Services →
+#      Petkit Feeder Local → Configure
 #
-# Die Card zeigt:
-#   - aktuellen Fütterungsplan (Text + Anzahl Einträge)
-#   - Status (Online/Offline, Stromquelle, Batterie)
-#   - Trockenmittel (mit Reset-Button)
-#   - Fütterungen/Menge heute
-#   - Schnellbuttons für Portionen
-#   - Switches (LED, Ton, Tastensperre)
-#   - Link zum Plan-Editor (Options-Flow)
+# The entity IDs below assume the integration was set up with the default
+# device name "Petkit Feeder" → entity IDs like sensor.petkit_feeder_*.
+# If you renamed the device during setup, do a find-and-replace in the
+# YAML, e.g. "petkit_feeder" → "my_feeder".
+#
+# This card shows:
+#   - current feeding schedule (text + entry count)
+#   - status (online/offline, power source, battery)
+#   - desiccant counter (with reset button)
+#   - feedings/amount today
+#   - quick-feed buttons
+#   - switches (LED, sound, key lock)
+#   - link to the schedule editor (options flow)
 
 type: vertical-stack
 cards:
-  # --- Status + Plan ---
+  # --- Status + schedule ---
   - type: entities
-    title: Petkit Futterautomat
+    title: Petkit Feeder
     show_header_toggle: false
     entities:
-      - entity: binary_sensor.futterautomat_verbindung
-        name: Status
+      - entity: binary_sensor.petkit_feeder_connection
+        name: Connection
         icon: mdi:cloud-check
-      - entity: sensor.futterautomat_firmware
+      - entity: sensor.petkit_feeder_firmware
         name: Firmware
       - type: section
-        label: Fütterungsplan
-      - entity: sensor.futterautomat_futterungsplan
-        name: Plan
+        label: Feeding schedule
+      - entity: sensor.petkit_feeder_feeding_schedule
+        name: Schedule
         icon: mdi:calendar-clock
       - type: call-service
-        name: Plan bearbeiten
+        name: Edit schedule
         icon: mdi:pencil
-        service: null  # dummy, will be overridden by tap_action
+        service: null
         tap_action:
           action: navigate
           navigation_path: /config/integrations/integration/petkit_feeder
       - type: section
-        label: Heute
-      - entity: sensor.futterautomat_futterungen_heute
-        name: Fütterungen
+        label: Today
+      - entity: sensor.petkit_feeder_feedings_today
+        name: Feedings
         icon: mdi:counter
-      - entity: sensor.futterautomat_futtermenge_heute
-        name: Menge
+      - entity: sensor.petkit_feeder_food_dispensed_today
+        name: Amount
         icon: mdi:scale
 
-  # --- Schnell füttern ---
+  # --- Quick feed buttons ---
   - type: horizontal-stack
     cards:
       - type: button
-        entity: button.futterautomat_futtern_1_portion
+        entity: button.petkit_feeder_feed_1_portion
         name: "1× (10g)"
         icon: mdi:food-drumstick
         show_state: false
@@ -60,9 +66,9 @@ cards:
           action: call-service
           service: button.press
           target:
-            entity_id: button.futterautomat_futtern_1_portion
+            entity_id: button.petkit_feeder_feed_1_portion
       - type: button
-        entity: button.futterautomat_futtern_2_portionen
+        entity: button.petkit_feeder_feed_2_portions
         name: "2× (20g)"
         icon: mdi:food-drumstick
         show_state: false
@@ -70,9 +76,9 @@ cards:
           action: call-service
           service: button.press
           target:
-            entity_id: button.futterautomat_futtern_2_portionen
+            entity_id: button.petkit_feeder_feed_2_portions
       - type: button
-        entity: button.futterautomat_futtern_5_portionen
+        entity: button.petkit_feeder_feed_5_portions
         name: "5× (50g)"
         icon: mdi:food-drumstick
         show_state: false
@@ -80,47 +86,46 @@ cards:
           action: call-service
           service: button.press
           target:
-            entity_id: button.futterautomat_futtern_5_portionen
+            entity_id: button.petkit_feeder_feed_5_portions
 
-  # --- Zustand ---
+  # --- Device state ---
   - type: entities
-    title: Zustand
+    title: State
     show_header_toggle: false
     entities:
-      - entity: sensor.futterautomat_futterbehalter
-        name: Futterbehälter
+      - entity: sensor.petkit_feeder_food_container
+        name: Food container
         icon: mdi:silo
-      - entity: sensor.futterautomat_trockenmittel_tage_ubrig
-        name: Trockenmittel
+      - entity: sensor.petkit_feeder_desiccant_days_left
+        name: Desiccant
         icon: mdi:water-opacity
       - type: call-service
-        name: Trockenmittel gewechselt
+        name: Desiccant replaced
         icon: mdi:restart
         service: petkit_feeder.reset_desiccant
 
-  # --- Strom + WiFi ---
+  # --- Power + WiFi ---
   - type: entities
-    title: Strom & Verbindung
+    title: Power & connection
     show_header_toggle: false
     entities:
-      - entity: sensor.futterautomat_stromquelle
-        name: Stromquelle
-      - entity: sensor.futterautomat_batteriestatus
-        name: Batteriestatus
-      - entity: sensor.futterautomat_batterie
-        name: Batterie-Level
-      - entity: sensor.futterautomat_wifi_signal
+      - entity: sensor.petkit_feeder_power_source
+        name: Power source
+      - entity: sensor.petkit_feeder_battery_status
+        name: Battery status
+      - entity: sensor.petkit_feeder_battery
+        name: Battery level
+      - entity: sensor.petkit_feeder_wifi_signal
         name: WiFi
-      # Laufzeit ist jetzt Diagnostic — steht auf der Geräte-Seite unter "Diagnose"
 
-  # --- Geräteeinstellungen ---
+  # --- Device settings ---
   - type: entities
-    title: Einstellungen
+    title: Settings
     show_header_toggle: false
     entities:
-      - entity: switch.futterautomat_led_anzeige
-        name: LED-Anzeige
-      - entity: switch.futterautomat_futterungston
-        name: Fütterungston
-      - entity: switch.futterautomat_tastensperre
-        name: Tastensperre
+      - entity: switch.petkit_feeder_led_display
+        name: LED display
+      - entity: switch.petkit_feeder_feeding_sound
+        name: Feeding sound
+      - entity: switch.petkit_feeder_key_lock
+        name: Key lock

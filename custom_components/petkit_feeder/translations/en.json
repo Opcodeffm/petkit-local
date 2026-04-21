@@ -14,7 +14,13 @@
     "step": {
       "init": {
         "title": "Edit feeding schedule",
-        "description": "Current entries:\n\n{plan}\n\nMax. 10 entries per weekday."
+        "description": "Current entries:\n\n{plan}\n\nMax. 10 entries per weekday.",
+        "menu_options": {
+          "add": "Add entry",
+          "delete": "Remove entry",
+          "clear": "Clear all",
+          "save": "Save and close"
+        }
       },
       "add": {
         "title": "Add entry",
@@ -38,15 +44,49 @@
       "invalid_schedule": "Schedule is invalid (e.g. more than 10 entries per day). Nothing saved."
     }
   },
+  "selector": {
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    }
+  },
   "entity": {
     "sensor": {
-      "food_container": { "name": "Food container" },
+      "food_container": {
+        "name": "Food container",
+        "state": {
+          "ok": "Food available",
+          "empty": "Empty"
+        }
+      },
       "desiccant_days_left": { "name": "Desiccant days left" },
       "feedings_today": { "name": "Feedings today" },
       "food_amount_today": { "name": "Food dispensed today" },
       "battery": { "name": "Battery" },
-      "battery_status": { "name": "Battery status" },
-      "power_source": { "name": "Power source" },
+      "battery_status": {
+        "name": "Battery status",
+        "state": {
+          "ok": "OK",
+          "low": "Low",
+          "critical": "Critical",
+          "no_batteries": "No batteries",
+          "on_battery": "Running on battery"
+        }
+      },
+      "power_source": {
+        "name": "Power source",
+        "state": {
+          "mains": "Mains (USB/DC)",
+          "battery": "Battery"
+        }
+      },
       "firmware": { "name": "Firmware" },
       "wifi_signal": { "name": "WiFi signal" },
       "last_heartbeat": { "name": "Last heartbeat" },

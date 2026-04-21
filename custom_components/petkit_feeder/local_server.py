@@ -25,13 +25,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _compact_days(days: list[str]) -> str:
-    """Compact list of weekday shortcodes, e.g. [Mo,Di,Mi,Do,Fr] → 'Mo-Fr'."""
+    """Compact list of weekday shortcodes, e.g. [Mon,Tue,Wed,Thu,Fri] → 'Mon-Fri'."""
     if len(days) == 7:
-        return "täglich"
-    if days == ["Mo", "Di", "Mi", "Do", "Fr"]:
-        return "Mo-Fr"
-    if days == ["Sa", "So"]:
-        return "Wochenende"
+        return "daily"
+    if days == ["Mon", "Tue", "Wed", "Thu", "Fri"]:
+        return "Mon-Fri"
+    if days == ["Sat", "Sun"]:
+        return "weekend"
     return ",".join(days)
 
 
@@ -67,7 +67,7 @@ class PetkitLocalServer:
             "mac": "",
             "sn": "",
             "secret": "",
-            "name": "Futterautomat",
+            "name": "Petkit Feeder",
             "hardware": 1,
             "firmware": "unknown",
             "timezone": 2.0,
@@ -406,7 +406,7 @@ class PetkitLocalServer:
 
     def schedule_summary(self) -> dict:
         """Return a human-readable summary of the current schedule."""
-        DAY_SHORT = {1: "Mo", 2: "Di", 3: "Mi", 4: "Do", 5: "Fr", 6: "Sa", 7: "So"}
+        DAY_SHORT = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
         # Group items by (time, amount) → set of days
         groups: dict[tuple[int, int, str], set[int]] = {}
         for entry in self._feed_schedule:
@@ -425,7 +425,7 @@ class PetkitLocalServer:
         total = sum(len(e.get("items", [])) for e in self._feed_schedule)
         return {
             "count": total,
-            "text": " · ".join(lines) if lines else "Kein Plan aktiv",
+            "text": " · ".join(lines) if lines else "",
             "entries": lines,
             "raw": self._feed_schedule,
         }
@@ -708,7 +708,7 @@ class PetkitLocalServer:
             "secret": self._device_info.get("secret", ""),
             "createdAt": "2026-01-24T12:00:00.000+0000",
             "signupAt": "2026-01-24T12:00:00.000+0000",
-            "name": self._device_info.get("name", "Futterautomat"),
+            "name": self._device_info.get("name", "Petkit Feeder"),
             "hardware": self._device_info["hardware"],
             "firmware": self._device_info["firmware"],
             "firmwareDetails": [
@@ -722,7 +722,7 @@ class PetkitLocalServer:
             "btMac": self._device_info.get("btMac", ""),
             "typeCode": self._device_info.get("typeCode", 1),
             "settings": self._device_settings,
-            "desc": "Kein Fütterungsplan.",
+            "desc": "No feeding schedule.",
             "multiFeed": True,
             "multiConfig": True,
             "state": {

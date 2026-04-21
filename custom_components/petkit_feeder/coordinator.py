@@ -71,18 +71,20 @@ class PetkitFeederCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             battery_level = pct
 
         # Power source: USB if DCV >= 4V, else battery
+        # Values are translation keys matching translations/*.json entity.sensor.power_source.state.*
         mains_connected = DCV >= 4000
-        power_source = "Netz (USB/DC)" if mains_connected else "Batterie"
+        power_source = "mains" if mains_connected else "battery"
 
-        # Status text: combine installation + active source + level
+        # Battery status — translation keys matching translations/*.json
+        #   entity.sensor.battery_status.state.*
         if not batteries_installed:
-            status_text = "Keine Batterien"
+            status_text = "no_batteries"
         elif ubat_on_battery:
-            status_text = "Läuft auf Batterie"
+            status_text = "on_battery"
         elif battery_level is not None and battery_level <= 20:
-            status_text = "Niedrig"
+            status_text = "low"
         else:
-            status_text = "OK"
+            status_text = "ok"
 
         battery_status = 1 if ubat_on_battery else 0  # legacy field
 
@@ -173,7 +175,7 @@ class PetkitFeederCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         info = self.server.device_info
         return {
             "identifiers": {(DOMAIN, "0")},   # stable constant — matches original device registry
-            "name": info.get("name", "Futterautomat"),
+            "name": info.get("name", "Petkit Feeder"),
             "manufacturer": "Petkit",
             "model": "Fresh Element Solo (D4, Local)",
             "sw_version": str(info.get("firmware", "unknown")),
