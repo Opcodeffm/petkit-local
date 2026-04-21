@@ -35,6 +35,30 @@ So: **we replaced the cloud with a local Home Assistant integration** that
 reimplements just enough of the D4 protocol to keep the feeder happy while
 never sending a single byte to Petkit or Alibaba.
 
+## Scale of the problem
+
+What happens when you don't intercept:
+
+- **Heartbeats** every ~11 seconds → ~8,000 per device per day
+- **State reports** every ~14 minutes → ~100 per device per day
+- Combined payload: **~850 KB / day / device** to Petkit + Alibaba Cloud
+- Conservatively 5–10 million Petkit devices deployed globally →
+  **1.5–3 petabytes per year of pet-feeder telemetry**, mostly stating
+  the fact that the feeder is online
+
+The volume isn't even the scary part — it's what the payloads contain:
+
+| Field | What it leaks |
+|---|---|
+| `ssid`, `bssid` | Your WiFi name + router MAC → **geolocation to ~10 m via WiGLE / Apple / Google WPS databases** |
+| Timestamps of every feed | Daily rhythm, work schedule, vacation detection |
+| `rsq` (WiFi RSSI) | Movement / device placement inference |
+| Multiple Petkit devices on same SSID | Household topology reconstruction |
+| `runtime`, firmware version | Power-outage patterns, update status |
+
+None of this is needed for the feeder to work. This project proves it —
+the unit runs indefinitely without any of that data leaving the house.
+
 ## Features
 
 - 📅 **Feeding schedule** — up to 10 entries per weekday, managed from HA's UI
@@ -75,18 +99,35 @@ This integration is built and tested for the following Petkit feeder:
 
 - **Petkit Fresh Element Solo (D4)**, firmware `1.267` — full feature support
 
-### Likely compatible (untested, please report!)
+### Likely compatible for feeding, NOT for video (untested on our end)
 
-These feeders speak the same `/d4/` protocol and should work:
+These feeders speak the same `/d4/` protocol — feeding schedule, battery,
+heartbeats, everything non-video works exactly the same:
 
-- **Petkit YumShare Solo** *(camera features are NOT implemented — they live on a separate subsystem we haven't touched)*
-- **Petkit YumShare Dual-Hopper** *(the two-hopper logic has not been tested)*
-- Other D4-series variants
+- **Petkit YumShare Solo** — feeding ✅, camera ❌
+- **Petkit YumShare Dual-Hopper** — feeding ✅ (two-hopper logic untested), camera ❌
+
+**Why no camera:** Petkit routes video via **Agora.io** (a commercial
+WebRTC-SaaS, Chinese infrastructure) with server-side signed tokens.
+This is a fundamentally different architecture than the plain HTTP we
+intercept — there is no DNS redirect or local proxy that can replace
+Agora's signed session broker without access to Petkit's private keys.
+An existing integration
+([Jezza34000/homeassistant_petkit](https://github.com/Jezza34000/homeassistant_petkit))
+does expose YumShare video in Home Assistant, but the stream physically
+still transits Petkit + Agora cloud infrastructure — it is not local.
+If you're a privacy-focused user, that defeats the purpose.
+
+**Privacy-respecting alternative:** Fresh Element Solo + a separate
+ONVIF camera (Reolink E1, Tapo C200, anything with RTSP) + Frigate.
+Costs about the same as a YumShare, gives you 100% local AI monitoring,
+and lets you replace the camera later independently of the feeder.
 
 ### Not compatible ❌
 
 - Petkit Mate D2 / D3 — different protocol, different endpoints
-- Camera-focused models with RTSP/HLS video streaming
+- Any Petkit device where the primary function is the camera (Cozy
+  Cam, Cyber pet cameras etc.) — they speak Agora, not D4
 
 ## Installation
 
@@ -245,6 +286,15 @@ Petkit's cloud and BLE protocols. These are real issues that motivated
 this project. If you're planning to request CVE IDs referencing these
 findings, the document is written in a form suitable for MITRE
 submission.
+
+## Protecting against future firmware updates
+
+Petkit could, in principle, push a firmware update that defeats this
+integration. See [FIRMWARE_PROTECTION.md](FIRMWARE_PROTECTION.md) for a
+layered defense (OTA-block, Internet firewall, don't-use-the-app,
+firmware-change detection automation). TL;DR: our server already
+refuses every OTA query, and blocking the feeder from the public
+Internet makes the setup virtually update-proof.
 
 ## Disclaimer
 
