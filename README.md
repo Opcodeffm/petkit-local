@@ -70,6 +70,24 @@ the unit runs indefinitely without any of that data leaving the house.
 - 🌍 **Internationalization** — English + German out of the box, others via PR
 - 🔒 **Zero cloud** — the feeder never reaches `api.eu-pet.com` or `aliyuncs.com` once configured
 
+## Screenshots
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/devices.png" alt="Device page with all entities"><br>
+<em>Full device view — all entities at a glance: sensors, controls, diagnostic.</em>
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/feederschedule.png" alt="Schedule editor menu"><br>
+<em>Schedule editor — add / remove / clear / save.</em>
+<br><br>
+<img src="docs/images/addentry.png" alt="Add entry form"><br>
+<em>Add-entry form — time picker, amount slider, weekday checkboxes.</em>
+</td>
+</tr>
+</table>
+
 ## How it works
 
 ```
