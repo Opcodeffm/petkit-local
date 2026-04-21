@@ -264,6 +264,49 @@ integrated battery).
 A ready-to-paste Lovelace card is provided in
 [`docs/dashboard_card.yaml`](docs/dashboard_card.yaml).
 
+### Firmware-change alert (recommended)
+
+Once the integration is in place, the feeder's firmware should never
+change — our local server always tells it "no update available"
+([details](FIRMWARE_PROTECTION.md)). **If the version does change,
+something bypassed that protection** (e.g. the Petkit app briefly
+reached the feeder over BLE/LAN, a DNS leak, etc.). Detect it with
+this automation:
+
+```yaml
+# configuration.yaml (or Settings → Automations → "Edit in YAML")
+alias: "Petkit — firmware changed (unexpected!)"
+description: "Firmware is pinned by the local integration. A change means something reached Petkit's cloud."
+trigger:
+  - platform: state
+    entity_id: sensor.petkit_feeder_firmware   # adjust to YOUR entity ID
+    # Fires on any state change …
+condition:
+  # … except the normal "unknown → <version>" on first load after restart.
+  - condition: template
+    value_template: "{{ trigger.from_state.state not in ['unknown', 'unavailable', ''] }}"
+action:
+  - service: persistent_notification.create
+    data:
+      title: "⚠️ Petkit firmware changed"
+      message: >-
+        Firmware changed from {{ trigger.from_state.state }}
+        to {{ trigger.to_state.state }} at {{ now() }}.
+        This should never happen with the local integration —
+        check FIRMWARE_PROTECTION.md in the repo.
+      notification_id: petkit_firmware_change
+  # Optional: also push to mobile app
+  # - service: notify.mobile_app_your_phone
+  #   data:
+  #     title: "⚠️ Petkit firmware changed"
+  #     message: "{{ trigger.from_state.state }} → {{ trigger.to_state.state }}"
+mode: single
+```
+
+Replace `sensor.petkit_feeder_firmware` with your actual entity ID
+(find it under Settings → Devices & Services → Petkit Feeder Local →
+the device → *Firmware* diagnostic entity).
+
 ## Timing & quirks
 
 - **After HA restart**: the feeder sends a state-report roughly every
