@@ -76,6 +76,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _server = None
             return False
 
+        # Propagate HA's locale/timezone/region to the server so the feeder
+        # sees the host's actual locale — not a hardcoded default.
+        tz_offset: float | None = None
+        locale_name: str | None = hass.config.time_zone
+        region: str | None = hass.config.country
+        try:
+            import zoneinfo
+            from datetime import datetime
+            if hass.config.time_zone:
+                tz = zoneinfo.ZoneInfo(hass.config.time_zone)
+                tz_offset = datetime.now(tz).utcoffset().total_seconds() / 3600.0
+        except Exception:
+            _LOGGER.debug("Couldn't derive timezone offset; using fallback", exc_info=True)
+        _server.set_locale_info(
+            timezone_offset=tz_offset,
+            locale=locale_name,
+            region=region,
+        )
+
         # Load persisted schedule
         _store = Store(hass, _STORE_VERSION, _STORE_KEY_SCHEDULE)
         stored = await _store.async_load()

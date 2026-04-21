@@ -70,11 +70,17 @@ class PetkitLocalServer:
             "name": "Petkit Feeder",
             "hardware": 1,
             "firmware": "unknown",
-            "timezone": 2.0,
-            "locale": "Europe/Berlin",
+            # timezone / locale / region are overwritten from HA's config at
+            # integration setup via set_locale_info(). These are fallbacks
+            # only (UTC / neutral) in case the hass helpers aren't available.
+            "timezone": 0.0,
+            "locale": "UTC",
             "typeCode": 1,
             "btMac": "",
         }
+        # region is kept separate because the feeder doesn't care about it —
+        # it's only used in /user/login response for the app path.
+        self._region: str = "US"
         self._feed_queue: list[dict] = []
         self._settings_push_queue: list[dict] = []  # {key, value} pairs to push via heartbeat
         self._daily_feeds: dict[str, list] = {}
@@ -129,6 +135,30 @@ class PetkitLocalServer:
     # ------------------------------------------------------------------
     # Callbacks for HA
     # ------------------------------------------------------------------
+
+    def set_locale_info(
+        self,
+        timezone_offset: float | None = None,
+        locale: str | None = None,
+        region: str | None = None,
+    ) -> None:
+        """Configure timezone/locale/region reported to the feeder.
+
+        Called once at integration setup with values from hass.config so the
+        feeder sees the HA host's locale, not a hardcoded default.
+        """
+        if timezone_offset is not None:
+            self._device_info["timezone"] = float(timezone_offset)
+        if locale:
+            self._device_info["locale"] = locale
+        if region:
+            self._region = region
+        _LOGGER.info(
+            "Locale configured: tz=%s locale=%s region=%s",
+            self._device_info["timezone"],
+            self._device_info["locale"],
+            self._region,
+        )
 
     def register_update_callback(self, callback: Callable) -> None:
         """Register a callback to be called when feeder data updates."""
@@ -961,7 +991,7 @@ class PetkitLocalServer:
                 "id": "local_session_token",
                 "userId": "local",
                 "expiresIn": 999999,
-                "region": "DE",
+                "region": self._region,
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             },
             "apiServers": self._server_urls()["apiServers"],
