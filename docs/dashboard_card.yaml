@@ -38,13 +38,10 @@ cards:
       - entity: sensor.petkit_feeder_feeding_schedule
         name: Schedule
         icon: mdi:calendar-clock
-      - type: call-service
+      - type: weblink
+        url: /config/integrations/integration/petkit_feeder
         name: Edit schedule
         icon: mdi:pencil
-        service: null
-        tap_action:
-          action: navigate
-          navigation_path: /config/integrations/integration/petkit_feeder
       - type: section
         label: Today
       - entity: sensor.petkit_feeder_feedings_today
