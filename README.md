@@ -77,6 +77,9 @@ the unit runs indefinitely without any of that data leaving the house.
 <td width="50%" valign="top">
 <img src="docs/images/devices.png" alt="Device page with all entities"><br>
 <em>Full device view — all entities at a glance: sensors, controls, diagnostic.</em>
+<br><br>
+<img src="docs/images/lovelace.png" alt="Lovelace dashboard card"><br>
+<em>Ready-made Lovelace dashboard card (see <code>docs/dashboard_card.yaml</code>).</em>
 </td>
 <td width="50%" valign="top">
 <img src="docs/images/feederschedule.png" alt="Schedule editor menu"><br>
