@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon@2x.png" width="200" alt="Petkit Feeder Local">
+  <img src="docs/logos/banner-wide.png" alt="Petkit Local — Fresh Element Solo (D4) + Eversweet Max 2 Cordless (CTW3)">
 </p>
 
 <h1 align="center">Petkit Feeder Local</h1>
