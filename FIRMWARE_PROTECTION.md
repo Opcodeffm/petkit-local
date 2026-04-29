@@ -116,7 +116,7 @@ automation:
             {{ trigger.to_state.state }}
             at {{ now().strftime('%Y-%m-%d %H:%M') }}.
             Integration may need to be re-tested — check SECURITY tab in
-            the Petkit Feeder Local repo for a mitigation.
+            the Petkit Local repo for a mitigation.
 ```
 
 Replace `sensor.futterautomat_firmware` with your entity ID if different

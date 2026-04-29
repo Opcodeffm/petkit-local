@@ -1,6 +1,6 @@
 {
   "domain": "petkit_feeder",
-  "name": "Petkit Feeder Local",
+  "name": "Petkit Local",
   "codeowners": ["@Opcodeffm"],
   "config_flow": true,
   "dependencies": [],

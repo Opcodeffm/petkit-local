@@ -2,7 +2,7 @@
   <img src="docs/logos/banner-wide.png" alt="Petkit Local — Fresh Element Solo (D4) + Eversweet Max 2 Cordless (CTW3)">
 </p>
 
-<h1 align="center">Petkit Feeder Local</h1>
+<h1 align="center">Petkit Local</h1>
 
 <p align="center">
   <em>A fully local Home Assistant integration for the Petkit Fresh Element Solo (D4) feeder<br>
@@ -32,9 +32,22 @@ remote device control over plain HTTP, no TLS, no integrity checks on
 BLE provisioning. If you can intercept the HTTP traffic, you can
 control the feeder.
 
+If you also own the **Eversweet Max 2 Cordless (CTW3) fountain**, the
+same problems apply — and the fountain has no Wi-Fi of its own, so it
+relies on Bluetooth Low-Energy through a paired device (the Petkit app
+on your phone, or a feeder it shares an account with) to reach the
+cloud at all. This integration handles both: the D4 acts as transparent
+BLE relay for the CTW3, so adding the fountain to Home Assistant is
+optional and **requires the D4 feeder to already run this integration**.
+Onboarding is one cloud lookup at setup, then everything runs local.
+Standalone fountain support (without a D4) is intentionally out of scope
+— see [Related projects](#related-projects) for an alternative if that's
+your case.
+
 So: **we replaced the cloud with a local Home Assistant integration** that
-reimplements just enough of the D4 protocol to keep the feeder happy while
-never sending a single byte to Petkit or Alibaba.
+reimplements just enough of the D4 protocol to keep the feeder happy
+(and BLE-relays for the optional fountain) while never sending a single
+byte to Petkit or Alibaba.
 
 ## Scale of the problem
 
@@ -191,7 +204,7 @@ and lets you replace the camera later independently of the feeder.
 **Via HACS (recommended once merged):**
 1. HACS → Integrations → ⋮ → Custom repositories
 2. Add `https://github.com/Opcodeffm/petkit-local`, category *Integration*
-3. Install *Petkit Feeder Local*, restart HA
+3. Install *Petkit Local*, restart HA
 
 **Manually:**
 1. Copy `custom_components/petkit_feeder/` to your `config/custom_components/`
@@ -248,7 +261,7 @@ You need to provision the feeder with your WiFi credentials. Two paths:
 
 ### 5. Add the integration in HA
 
-Settings → Devices & Services → Add Integration → "Petkit Feeder Local"
+Settings → Devices & Services → Add Integration → "Petkit Local"
 → confirm. The feeder will register automatically on its next heartbeat
 (~10s).
 
@@ -256,7 +269,7 @@ Settings → Devices & Services → Add Integration → "Petkit Feeder Local"
 
 ### Editing the feeding schedule
 
-Settings → Devices & Services → *Petkit Feeder Local* → **CONFIGURE**.
+Settings → Devices & Services → *Petkit Local* → **CONFIGURE**.
 A menu appears:
 
 - **Add entry** — time picker, amount dropdown (10 g / 20 g / 50 g —
@@ -341,7 +354,7 @@ mode: single
 ```
 
 Replace `sensor.petkit_feeder_firmware` with your actual entity ID
-(find it under Settings → Devices & Services → Petkit Feeder Local →
+(find it under Settings → Devices & Services → Petkit Local →
 the device → *Firmware* diagnostic entity).
 
 ## Water fountain (optional)
@@ -368,7 +381,7 @@ working — only adding *new* fountains would break.
 
 ### How to add a fountain
 
-Settings → Devices & Services → *Petkit Feeder Local* → **Configure** →
+Settings → Devices & Services → *Petkit Local* → **Configure** →
 **Add water fountain**. Pick one of three authentication paths:
 
 #### 1. Email + password (most users)
