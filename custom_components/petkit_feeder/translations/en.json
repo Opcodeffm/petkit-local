@@ -19,7 +19,64 @@
           "add": "Add entry",
           "delete": "Remove entry",
           "clear": "Clear all",
+          "add_fountain": "Add water fountain",
+          "remove_fountain": "Remove water fountain",
           "save": "Save and close"
+        }
+      },
+      "add_fountain": {
+        "title": "Add water fountain",
+        "description": "How would you like to authenticate to your Petkit account? Once authenticated, the integration fetches the fountain's identifiers via the Petkit cloud and then runs fully locally.",
+        "menu_options": {
+          "fountain_login": "Sign in with email and password",
+          "fountain_token": "Paste a session token (Apple/Google sign-in users)",
+          "fountain_manual": "Manual entry (advanced, requires id+secret)"
+        }
+      },
+      "fountain_login": {
+        "title": "Sign in to Petkit",
+        "description": "We will call /user/login once to obtain a session token. The token is stored locally and refreshed daily. Your password is never stored — only its MD5 hash is sent (as required by the Petkit API).",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "region": "Region"
+        }
+      },
+      "fountain_token": {
+        "title": "Paste session token",
+        "description": "If you signed in to the Petkit app via Apple, Google or WeChat, you don't have a password we can use. Capture your X-Session token once (e.g. via mitmproxy / HTTP Catcher) and paste it here. The token is stored locally and refreshed daily.",
+        "data": {
+          "token": "X-Session token",
+          "region": "Region"
+        }
+      },
+      "fountain_manual": {
+        "title": "Manual fountain entry (advanced)",
+        "description": "Enter id, MAC, secret and serial number directly. Only do this if you already have those values from a prior packet capture; for normal users the Sign in or Paste-token paths are easier.",
+        "data": {
+          "mac": "MAC address",
+          "secret": "Device secret (hex)",
+          "device_id": "Device ID (numeric)",
+          "sn": "Serial number",
+          "name": "Name",
+          "firmware": "Firmware version"
+        }
+      },
+      "fountain_select": {
+        "title": "Add fountain",
+        "description": "Look up your fountain in the Petkit app under Device → Settings → Info to find its MAC and serial number. We will fetch the rest (id, secret, name, firmware) from the cloud automatically.\n\nDevice info we just fetched (if any):\n  ID:       {id}\n  MAC:      {mac}\n  Serial:   {sn}\n  Secret:   {secret}\n  Firmware: {firmware}\n  Default name: {default_name}",
+        "data": {
+          "mac": "MAC address",
+          "sn": "Serial number",
+          "name": "Name (you can change this anytime in HA)",
+          "confirm": "Add this fountain"
+        }
+      },
+      "remove_fountain": {
+        "title": "Remove water fountain",
+        "description": "Which fountain should be removed?",
+        "data": {
+          "mac": "Fountain"
         }
       },
       "add": {
@@ -41,7 +98,23 @@
       }
     },
     "abort": {
-      "invalid_schedule": "Schedule is invalid (e.g. more than 10 entries per day). Nothing saved."
+      "invalid_schedule": "Schedule is invalid (e.g. more than 10 entries per day). Nothing saved.",
+      "ctw3_not_available": "Water fountain extension is not available in this installation."
+    },
+    "error": {
+      "invalid_mac": "Invalid MAC address (need 12 hex chars, e.g. aa:bb:cc:dd:ee:ff).",
+      "invalid_secret": "Secret must be hex (0-9, a-f).",
+      "invalid_device_id": "Device ID must be a positive integer.",
+      "invalid_email": "Please enter a valid email address.",
+      "invalid_password": "Password must not be empty.",
+      "invalid_auth": "Petkit rejected the login. Check email and password.",
+      "cloud_unreachable": "Could not reach the Petkit cloud. Check your internet connection.",
+      "no_session_returned": "Petkit accepted the login but did not return a session token. Try again.",
+      "invalid_token_length": "Token looks wrong (expected 32-128 chars). Check that you copied the entire X-Session header value.",
+      "invalid_token": "Petkit rejected the token. It may have expired — please capture a fresh one.",
+      "session_lost": "The session was lost mid-flow. Please start over.",
+      "fountain_lookup_failed": "The Petkit cloud rejected the lookup. Check that MAC and serial number match a fountain on your account.",
+      "fountain_no_secret": "The Petkit cloud returned a result but no secret. This usually means the fountain is not bound to your account."
     }
   },
   "selector": {
@@ -59,11 +132,15 @@
   },
   "entity": {
     "sensor": {
+      "food_remaining_pct": { "name": "Food remaining (estimated)" },
+      "food_remaining_grams": { "name": "Food remaining (grams)" },
       "food_container": {
         "name": "Food container",
         "state": {
           "ok": "Food available",
-          "empty": "Empty"
+          "low": "Low (warning threshold)",
+          "empty": "Empty",
+          "unknown": "Unknown"
         }
       },
       "desiccant_days_left": { "name": "Desiccant days left" },
@@ -94,25 +171,82 @@
       "heartbeat_count": { "name": "Heartbeat count" },
       "battery_voltage": { "name": "Battery voltage" },
       "heap_free": { "name": "Free RAM" },
-      "feed_schedule": { "name": "Feeding schedule" }
+      "feed_schedule": { "name": "Feeding schedule" },
+      "ctw3_filter_percent": { "name": "Filter remaining" },
+      "ctw3_battery_percent": { "name": "Battery" },
+      "ctw3_battery_voltage": { "name": "Battery voltage" },
+      "ctw3_today_pump_runtime": { "name": "Pump runtime today" },
+      "ctw3_drinks_today": { "name": "Drinks today" },
+      "ctw3_last_drink_duration": { "name": "Last drink duration" },
+      "ctw3_last_drink_at": { "name": "Last drink" },
+      "ctw3_total_drink_time_today": { "name": "Total drink time today" },
+      "ctw3_mode_sensor": {
+        "name": "Fountain mode",
+        "state": {
+          "smart": "Smart",
+          "normal": "Normal",
+          "intermittent": "Intermittent"
+        }
+      }
     },
     "binary_sensor": {
       "online": { "name": "Connection" },
       "motor_error": { "name": "Motor error" },
       "rtc_error": { "name": "RTC error" },
       "ir_sensor_error": { "name": "IR sensor error" },
-      "dc_error": { "name": "DC error" }
+      "dc_error": { "name": "DC error" },
+      "ctw3_pump_running": { "name": "Pump running" },
+      "ctw3_motion_detected": { "name": "Motion detected" },
+      "ctw3_low_battery": { "name": "Low battery" },
+      "ctw3_filter_warning": { "name": "Filter warning" },
+      "ctw3_lack_warning": { "name": "Low water" },
+      "ctw3_breakdown_warning": { "name": "Breakdown warning" }
     },
     "button": {
-      "feed_1_portion": { "name": "Feed 1 portion" },
-      "feed_2_portions": { "name": "Feed 2 portions" },
-      "feed_5_portions": { "name": "Feed 5 portions" },
-      "reset_desiccant": { "name": "Reset desiccant" }
+      "feed_1_portion": { "name": "Feed 10 g" },
+      "feed_2_portions": { "name": "Feed 20 g" },
+      "feed_5_portions": { "name": "Feed 50 g" },
+      "reset_desiccant": { "name": "Reset desiccant" },
+      "ctw3_reset_filter": { "name": "Reset filter" }
     },
     "switch": {
       "feed_sound": { "name": "Feeding sound" },
       "manual_lock": { "name": "Key lock" },
-      "light_mode": { "name": "LED display" }
+      "light_mode": { "name": "LED display" },
+      "ctw3_power": { "name": "Power" },
+      "ctw3_suspend": { "name": "Pause pump" },
+      "ctw3_lamp": { "name": "Status indicator" },
+      "ctw3_no_disturb": { "name": "Do not disturb" },
+      "ctw3_smart_inductive": { "name": "Motion sensor (Standard mode)" },
+      "ctw3_battery_inductive": { "name": "Motion sensor (battery mode)" }
+    },
+    "select": {
+      "ctw3_mode": {
+        "name": "Mode",
+        "state": {
+          "smart": "Standard",
+          "normal": "Intermittent",
+          "intermittent": "Intermittent (legacy)"
+        }
+      },
+      "ctw3_lamp_brightness": {
+        "name": "LED brightness",
+        "state": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      }
+    },
+    "number": {
+      "ctw3_intermittent_pump_on_time": { "name": "Intermittent: pump-on (AC)" },
+      "ctw3_intermittent_pump_off_time": { "name": "Intermittent: pump-off (AC)" },
+      "ctw3_battery_pump_on_time": { "name": "Battery: pump-on" },
+      "ctw3_battery_pump_off_time": { "name": "Battery: pump-off" }
+    },
+    "time": {
+      "ctw3_dnd_start": { "name": "DND start" },
+      "ctw3_dnd_stop": { "name": "DND stop" }
     }
   },
   "services": {

@@ -57,9 +57,17 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: PetkitFeederCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        PetkitBinarySensor(coordinator, desc) for desc in BINARY_SENSORS
-    )
+    entities: list = [PetkitBinarySensor(coordinator, desc) for desc in BINARY_SENSORS]
+
+    # Optional CTW3 fountain binary sensors
+    try:
+        from .ctw3_entities import get_ctw3_binary_sensors
+        for coord in (hass.data.get(DOMAIN, {}).get("_fountain_coordinators") or {}).values():
+            entities.extend(get_ctw3_binary_sensors(coord))
+    except ImportError:
+        pass
+
+    async_add_entities(entities)
 
 
 class PetkitBinarySensor(CoordinatorEntity[PetkitFeederCoordinator], BinarySensorEntity):

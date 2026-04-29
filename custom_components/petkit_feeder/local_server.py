@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import time as _time_mod
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -20,6 +22,20 @@ from .const import LOCAL_SERVER_PORT
 PETKIT_REAL_IP = "3.66.36.97"  # EU cloud IP from setup_capture
 PETKIT_REAL_HOST = "api.eu-pet.com"
 PROXY_MODE = False  # Enable via /proxy/on, disable via /proxy/off
+
+# Capture mode: when True, every request (and its proxy upstream response) is
+# appended as JSONL to CAPTURE_FILE. For Path B investigation — we need to see
+# every byte the feeder exchanges with the cloud (and vice versa).
+CAPTURE_MODE = False
+CAPTURE_FILE = "/config/petkit_capture.jsonl"
+_CAPTURE_LOCK: asyncio.Lock | None = None  # lazy-init inside running event loop
+
+
+def _get_capture_lock() -> asyncio.Lock:
+    global _CAPTURE_LOCK
+    if _CAPTURE_LOCK is None:
+        _CAPTURE_LOCK = asyncio.Lock()
+    return _CAPTURE_LOCK
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,6 +101,24 @@ class PetkitLocalServer:
         self._settings_push_queue: list[dict] = []  # {key, value} pairs to push via heartbeat
         self._daily_feeds: dict[str, list] = {}
         self._feed_schedule: list = []
+        # --- Estimated food-tank fill tracking ----------------------------
+        # The D4 firmware reports `food` as a 4-state ENUM (-1/0/1/2 — see
+        # sensor.py for the mapping), not a continuous level. To give the
+        # user a usable "remaining %" estimate, we count grams dispensed
+        # since the last detected refill and compare against a configured
+        # tank capacity.
+        #
+        # Refill detection: when the firmware reports food transitioning
+        # 0 → (1 or 2) or -1 → (1 or 2), the tank just got more food, so we
+        # zero the dispensed counter. Manual override available via the
+        # `set_food_full` service.
+        #
+        # Tank capacity defaults to 1700 g (Petkit D4 spec is 3 L which
+        # holds ~1.7-1.8 kg of typical dry kibble). User can override.
+        self._food_tank_capacity_g: int = 1700
+        self._food_dispensed_since_refill_g: int = 0
+        self._food_refill_at: float | None = None  # unix timestamp of last refill
+        self._last_food_state: int | None = None   # for transition detection
         self._heartbeat_count: int = 0
         self._last_heartbeat: str = ""
         self._feeder_online: bool = False
@@ -105,6 +139,35 @@ class PetkitLocalServer:
 
         # Callbacks for HA entity updates
         self._update_callbacks: list[Callable] = []
+
+        # Optional CTW3 fountain handler — registered by private code
+        # when a fountain is configured. Called with (path_suffix, body, raw).
+        self._ctw3_handler: Callable[[str, dict, bytes], "dict | None"] | None = None
+        # Optional hook used by `/debug/ble_pause_*` endpoints to release or
+        # re-acquire the BLE slot on paired fountains. Provided by
+        # FountainServer when CTW3 support is loaded.
+        self._ble_pause_control: Callable[[bool], None] | None = None
+        # DEBUG: optional hook for /debug/test_dnd — pushes a cmd 226 with
+        # user-supplied time window to the first registered fountain.
+        # Signature: (state:int, w1_start_min:int, w1_end_min:int) -> None
+        self._dnd_test_control: Callable[[int, int, int], None] | None = None
+
+        # Heartbeat content providers — each returns an Optional[dict] that,
+        # if present, becomes the single result entry in the next heartbeat
+        # response instead of the default keepalive. Used by auxiliary
+        # modules (e.g. the CTW3 fountain relay) to piggyback commands on
+        # the D4 heartbeat cycle.
+        self._heartbeat_content_providers: list[Callable[[], dict | None]] = []
+
+        # Optional BLE-roster provider — returns the body for /d4/dev_ble_device
+        # (shape: {"list":[{interval,id,secret,type,mac},...],"nextTick":n}).
+        # Used by the CTW3 fountain relay to advertise paired fountains.
+        self._ble_roster_provider: Callable[[], dict] | None = None
+
+        # Optional event-report handlers — invoked for each /d4/dev_event_report
+        # POST body. Used by the CTW3 fountain relay to react to BLE
+        # connect/disconnect results and fountain responses.
+        self._event_report_handlers: list[Callable[[dict], None]] = []
 
         self._setup_routes()
 
@@ -164,6 +227,82 @@ class PetkitLocalServer:
         """Register a callback to be called when feeder data updates."""
         self._update_callbacks.append(callback)
 
+    def register_ctw3_handler(
+        self, handler: Callable[[str, dict, bytes], "dict | None"]
+    ) -> None:
+        """Register a handler for incoming CTW3 POSTs.
+
+        Called with (path_suffix, parsed_body_dict, raw_body_bytes). May
+        return a dict that becomes the JSON response `result` field, or
+        None to use a default success reply.
+        """
+        self._ctw3_handler = handler
+
+    def register_ble_pause_control(
+        self, control: Callable[[bool], None]
+    ) -> None:
+        """Register a bool-callback that toggles persistent BLE mode.
+
+        Called with True to enable persistent mode (our integration
+        holds the BLE slot continuously), False to release it (so the
+        Petkit app can take the slot for direct-BLE edits).
+
+        Exposed via the HTTP debug endpoints `/debug/ble_pause_on`
+        and `/debug/ble_pause_off`.
+        """
+        self._ble_pause_control = control
+
+    def register_dnd_test_control(
+        self, control: Callable[[int, int, int], None]
+    ) -> None:
+        """Register a callback that pushes a test cmd 226 DND frame.
+
+        Invoked with (state, window1_start_min, window1_end_min).
+        Used exclusively for protocol verification via
+        `/debug/test_dnd?start=480&end=540&state=1`.
+        """
+        self._dnd_test_control = control
+
+    def register_heartbeat_content_provider(
+        self, provider: Callable[[], "dict | None"]
+    ) -> None:
+        """Register a callback invoked on every D4 heartbeat.
+
+        If the callback returns a non-None dict, that dict becomes the
+        single entry in the heartbeat response's `result` list instead
+        of the default time-sync keepalive. Used for pushing commands
+        (feed, BLE relay, settings) down to the feeder.
+
+        Providers are tried in registration order; first non-None wins.
+        """
+        self._heartbeat_content_providers.append(provider)
+
+    def register_ble_roster_provider(
+        self, provider: Callable[[], dict]
+    ) -> None:
+        """Register a callback that supplies the /d4/dev_ble_device roster.
+
+        The callback is invoked when the D4 asks the cloud which BLE
+        devices it should relay for. Return shape:
+
+            {"list": [{"interval":240,"id":...,"secret":...,"type":24,"mac":...}],
+             "nextTick": 3600}
+
+        Only one provider is supported (last registration wins).
+        """
+        self._ble_roster_provider = provider
+
+    def register_event_report_handler(
+        self, handler: Callable[[dict], None]
+    ) -> None:
+        """Register a callback invoked on every /d4/dev_event_report POST.
+
+        The callback receives the parsed body dict. Used by auxiliary
+        modules to react to BLE connect/disconnect results (event_type=52)
+        and fountain responses (event_type=53).
+        """
+        self._event_report_handlers.append(handler)
+
     def _notify_update(self) -> None:
         """Notify all registered callbacks of data update."""
         for cb in self._update_callbacks:
@@ -205,13 +344,37 @@ class PetkitLocalServer:
             self._desiccant_reset_at = data["desiccant_reset_at"]
         if "daily_feeds" in data:
             self._daily_feeds = data["daily_feeds"]
+        if "food_tank_capacity_g" in data:
+            try:
+                self._food_tank_capacity_g = int(data["food_tank_capacity_g"]) or 1700
+            except (ValueError, TypeError):
+                pass
+        if "food_dispensed_since_refill_g" in data:
+            try:
+                self._food_dispensed_since_refill_g = max(
+                    0, int(data["food_dispensed_since_refill_g"])
+                )
+            except (ValueError, TypeError):
+                pass
+        if "food_refill_at" in data:
+            try:
+                self._food_refill_at = float(data["food_refill_at"]) if data["food_refill_at"] else None
+            except (ValueError, TypeError):
+                self._food_refill_at = None
+        if "last_food_state" in data:
+            try:
+                self._last_food_state = int(data["last_food_state"])
+            except (ValueError, TypeError):
+                self._last_food_state = None
         _LOGGER.info(
-            "Restored persistent state: firmware=%s, ssid=%s, rsq=%s, desiccant_reset=%s, feed_days=%d",
+            "Restored persistent state: firmware=%s, ssid=%s, rsq=%s, desiccant_reset=%s, feed_days=%d, food_dispensed=%dg/%dg",
             self._device_info.get("firmware"),
             self._device_state.get("wifi", {}).get("ssid"),
             self._device_state.get("wifi", {}).get("rsq"),
             self._desiccant_reset_at,
             len(self._daily_feeds),
+            self._food_dispensed_since_refill_g,
+            self._food_tank_capacity_g,
         )
 
     def get_persistent_state(self) -> dict:
@@ -226,6 +389,10 @@ class PetkitLocalServer:
             "device_settings": self._device_settings,
             "desiccant_reset_at": self._desiccant_reset_at,
             "daily_feeds": self._daily_feeds,
+            "food_tank_capacity_g": self._food_tank_capacity_g,
+            "food_dispensed_since_refill_g": self._food_dispensed_since_refill_g,
+            "food_refill_at": self._food_refill_at,
+            "last_food_state": self._last_food_state,
         }
 
     # ------------------------------------------------------------------
@@ -333,6 +500,96 @@ class PetkitLocalServer:
         return max(0, self.DESICCANT_LIFETIME_DAYS - elapsed_full_days)
 
     # ------------------------------------------------------------------
+    # Estimated food-tank fill — Petkit firmware only reports a coarse
+    # ENUM (-1/0/1/2). We track grams dispensed since last refill to
+    # produce a finer "remaining %" estimate.
+    # ------------------------------------------------------------------
+
+    @property
+    def food_tank_capacity_g(self) -> int:
+        return self._food_tank_capacity_g
+
+    def set_food_tank_capacity(self, grams: int) -> None:
+        """Adjust the assumed full-tank capacity (e.g. user has a smaller hopper)."""
+        if grams < 100 or grams > 5000:
+            raise ValueError(f"capacity must be 100-5000g, got {grams}")
+        self._food_tank_capacity_g = int(grams)
+        _LOGGER.info("Food tank capacity set to %dg", self._food_tank_capacity_g)
+        self._notify_update()
+        self._persist()
+
+    def record_refill(self, *, source: str = "manual") -> None:
+        """Mark the tank as freshly filled. Resets the dispensed counter to 0
+        and the percent-remaining indicator to 100%.
+
+        `source` is one of 'manual' (service call), 'auto' (firmware
+        food-state transition detected), 'restored' (state loaded from disk).
+        """
+        import time as _time
+        self._food_dispensed_since_refill_g = 0
+        self._food_refill_at = _time.time()
+        _LOGGER.info(
+            "Food tank marked as refilled (source=%s, capacity=%dg)",
+            source, self._food_tank_capacity_g,
+        )
+        self._notify_update()
+        self._persist()
+
+    def _account_for_dispense(self, grams: int) -> None:
+        """Internal: increment the dispensed-since-refill counter when a
+        feed command is pushed to the feeder. Called from the heartbeat
+        handler when a queued feed ships out."""
+        if grams <= 0:
+            return
+        self._food_dispensed_since_refill_g = (
+            self._food_dispensed_since_refill_g + grams
+        )
+
+    def food_remaining_grams(self) -> int | None:
+        """Estimated grams remaining in the tank.
+
+        Returns None if we have never seen a refill (= we don't know the
+        baseline). After the first refill (manual or auto), this becomes
+        a number between 0 and tank_capacity_g.
+        """
+        if self._food_refill_at is None:
+            return None
+        return max(
+            0,
+            self._food_tank_capacity_g - self._food_dispensed_since_refill_g,
+        )
+
+    def food_remaining_percent(self) -> int | None:
+        """Estimated remaining tank fill, 0-100. None if no baseline."""
+        grams = self.food_remaining_grams()
+        if grams is None:
+            return None
+        return int(round(100 * grams / max(1, self._food_tank_capacity_g)))
+
+    def _check_food_refill_transition(self, new_state: int) -> None:
+        """Detect tank-refill events from the firmware's `food` ENUM.
+
+        The firmware reports `food` as -1/0/1/2. A transition from
+        empty/unknown into a non-empty state means the user just refilled.
+        We auto-call record_refill so the user doesn't have to press a
+        button every time.
+        """
+        prev = self._last_food_state
+        self._last_food_state = new_state
+        if prev is None:
+            # First reading after restart; don't infer a refill.
+            return
+        # Transition from empty/unknown into "has-food" → refill detected.
+        was_empty = prev in (0, -1)
+        is_filled = new_state in (1, 2)
+        if was_empty and is_filled:
+            _LOGGER.info(
+                "Auto-detected refill: food state %s → %s",
+                prev, new_state,
+            )
+            self.record_refill(source="auto")
+
+    # ------------------------------------------------------------------
     # Feed schedule management
     # ------------------------------------------------------------------
 
@@ -370,15 +627,18 @@ class PetkitLocalServer:
         ]
 
         for idx, e in enumerate(entries):
-            # Parse time "HH:MM" → seconds since midnight
+            # Parse time "HH:MM" or "HH:MM:SS" → seconds since midnight
             time_str = e.get("time", "")
             try:
-                h, m = time_str.split(":")
+                parts = time_str.split(":")
+                if len(parts) < 2:
+                    raise ValueError
+                h, m = parts[0], parts[1]
                 time_sec = int(h) * 3600 + int(m) * 60
                 if not (0 <= time_sec < 86400):
                     raise ValueError
             except (ValueError, AttributeError):
-                raise ValueError(f"entries[{idx}].time must be 'HH:MM', got {time_str!r}")
+                raise ValueError(f"entries[{idx}].time must be 'HH:MM' or 'HH:MM:SS', got {time_str!r}")
 
             amount = int(e.get("amount", 0))
             if amount < 1 or amount > 200:
@@ -500,6 +760,51 @@ class PetkitLocalServer:
         return path
 
     # ------------------------------------------------------------------
+    # Capture (Path B investigation — dumps every request as JSONL)
+    # ------------------------------------------------------------------
+
+    async def _capture_write(self, entry: dict) -> None:
+        """Append one capture entry to CAPTURE_FILE. Lock-protected."""
+        if not CAPTURE_MODE:
+            return
+        try:
+            async with _get_capture_lock():
+                loop = asyncio.get_event_loop()
+                line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
+                await loop.run_in_executor(
+                    None,
+                    lambda: open(CAPTURE_FILE, "a", encoding="utf-8").write(line),
+                )
+        except Exception:
+            _LOGGER.exception("capture write failed")
+
+    @staticmethod
+    def _decode_body_bytes(raw: bytes) -> Any:
+        """Best-effort decode: JSON → dict, else URL-encoded → dict, else str/hex."""
+        if not raw:
+            return ""
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return {"__hex": raw.hex(), "__len": len(raw)}
+        # Try JSON first
+        try:
+            return json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Try URL-encoded
+        if "=" in text and ("&" in text or not text.startswith("{")):
+            from urllib.parse import unquote
+            parsed = {}
+            for pair in text.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    parsed[unquote(k)] = unquote(v)
+            if parsed:
+                return parsed
+        return text
+
+    # ------------------------------------------------------------------
     # Route setup
     # ------------------------------------------------------------------
 
@@ -512,7 +817,25 @@ class PetkitLocalServer:
     # ------------------------------------------------------------------
 
     async def _handle_get(self, request: web.Request) -> web.Response:
+        global PROXY_MODE, CAPTURE_MODE
         path = request.path
+        # Capture everything except our own control/health endpoints
+        if CAPTURE_MODE and not (
+            path == "/" or path == "/health"
+            or path.startswith("/proxy/") or path.startswith("/capture/") or path.startswith("/debug/")
+            or path.startswith("/test/")
+        ):
+            await self._capture_write({
+                "ts": _time_mod.time(),
+                "dir": "in",
+                "method": "GET",
+                "path": path,
+                "query": dict(request.query),
+                "host": request.host,
+                "remote": request.remote,
+                "headers": dict(request.headers),
+                "proxy_mode": PROXY_MODE,
+            })
         if path == "/" or path == "/health":
             return web.json_response({
                 "status": "ok",
@@ -523,7 +846,6 @@ class PetkitLocalServer:
                 "feed_schedule_items": sum(len(e.get("items", [])) for e in self._feed_schedule),
             })
         if path == "/proxy/on":
-            global PROXY_MODE
             PROXY_MODE = True
             _LOGGER.warning("🔀 PROXY MODE ENABLED — forwarding to real Petkit cloud")
             return web.json_response({"proxy_mode": True})
@@ -531,6 +853,110 @@ class PetkitLocalServer:
             PROXY_MODE = False
             _LOGGER.warning("🛑 PROXY MODE DISABLED")
             return web.json_response({"proxy_mode": False})
+        if path == "/capture/on":
+            CAPTURE_MODE = True
+            _LOGGER.warning("🎥 CAPTURE MODE ENABLED → %s", CAPTURE_FILE)
+            return web.json_response({"capture_mode": True, "file": CAPTURE_FILE})
+        if path == "/capture/off":
+            CAPTURE_MODE = False
+            _LOGGER.warning("⏹ CAPTURE MODE DISABLED")
+            return web.json_response({"capture_mode": False})
+        if path == "/capture/status":
+            # Run the file I/O off-loop to avoid blocking the event loop
+            # (HA warns on synchronous open() calls inside async handlers).
+            def _read_stats() -> tuple[int, int]:
+                size = 0
+                lines = 0
+                if os.path.exists(CAPTURE_FILE):
+                    size = os.path.getsize(CAPTURE_FILE)
+                    with open(CAPTURE_FILE, "rb") as f:
+                        lines = sum(1 for _ in f)
+                return size, lines
+            try:
+                size, lines = await asyncio.to_thread(_read_stats)
+            except Exception as err:
+                return web.json_response({"error": str(err)}, status=500)
+            return web.json_response({
+                "capture_mode": CAPTURE_MODE,
+                "proxy_mode": PROXY_MODE,
+                "file": CAPTURE_FILE,
+                "bytes": size,
+                "entries": lines,
+            })
+        if path == "/capture/clear":
+            try:
+                if os.path.exists(CAPTURE_FILE):
+                    os.remove(CAPTURE_FILE)
+                _LOGGER.warning("🗑 CAPTURE FILE CLEARED")
+                return web.json_response({"cleared": True})
+            except Exception as err:
+                return web.json_response({"error": str(err)}, status=500)
+        if path == "/capture/download":
+            try:
+                if not os.path.exists(CAPTURE_FILE):
+                    return web.json_response({"error": "no capture file"}, status=404)
+                return web.FileResponse(
+                    CAPTURE_FILE,
+                    headers={
+                        "Content-Type": "application/x-ndjson",
+                        "Content-Disposition": 'attachment; filename="petkit_capture.jsonl"',
+                    },
+                )
+            except Exception as err:
+                return web.json_response({"error": str(err)}, status=500)
+        # BLE-pause toggle: /debug/ble_pause_on disables our persistent
+        # BLE mode and drops active sessions so the Petkit app can claim
+        # the fountain's BLE slot directly (needed for DND-time edits
+        # and other app-driven config). /debug/ble_pause_off re-enables.
+        if path in ("/debug/ble_pause_on", "/debug/ble_pause_off"):
+            if self._ble_pause_control is None:
+                return web.json_response(
+                    {"error": "no BLE fountains registered"}, status=404,
+                )
+            pause = (path.endswith("_on"))
+            try:
+                # pause=True means persistent_mode should be OFF
+                self._ble_pause_control(not pause)
+            except Exception as err:
+                return web.json_response({"error": str(err)}, status=500)
+            _LOGGER.warning(
+                "🔒 BLE PAUSE %s (persistent_mode=%s)",
+                "ON" if pause else "OFF", not pause,
+            )
+            return web.json_response({"ble_paused": pause})
+        # DEBUG: /debug/test_dnd?start=MIN&end=MIN&state=N
+        # Pushes a cmd 226 DND time-window frame to the fountain for
+        # protocol verification. All params optional; defaults to
+        # start=480 (08:00), end=540 (09:00), state=1 (DND on).
+        if path == "/debug/test_dnd":
+            if self._dnd_test_control is None:
+                return web.json_response(
+                    {"error": "no BLE fountains registered"}, status=404,
+                )
+            try:
+                start = int(request.query.get("start", "480"))
+                end = int(request.query.get("end", "540"))
+                state = int(request.query.get("state", "1"))
+            except ValueError as err:
+                return web.json_response({"error": str(err)}, status=400)
+            try:
+                self._dnd_test_control(state, start, end)
+            except Exception as err:
+                return web.json_response({"error": str(err)}, status=500)
+            return web.json_response({
+                "sent": True,
+                "state": state,
+                "window1_start_min": start,
+                "window1_end_min": end,
+                "window1_human": f"{start//60:02d}:{start%60:02d}-{end//60:02d}:{end%60:02d}",
+            })
+        # Proxy GETs too when PROXY_MODE is active (some app endpoints are GET)
+        if PROXY_MODE and not (
+            path == "/" or path == "/health"
+            or path.startswith("/proxy/") or path.startswith("/capture/") or path.startswith("/debug/")
+            or path.startswith("/test/")
+        ):
+            return await self._proxy_to_petkit(request, b"")
         # TEST: /test/schedule/<delay_seconds>/<amount_grams>
         if path.startswith("/test/schedule/"):
             try:
@@ -582,6 +1008,17 @@ class PetkitLocalServer:
                         k: v for k, v in resp.headers.items()
                         if k.lower() not in ("transfer-encoding", "connection", "content-length")
                     }
+                    if CAPTURE_MODE:
+                        await self._capture_write({
+                            "ts": _time_mod.time(),
+                            "dir": "upstream_resp",
+                            "method": request.method,
+                            "path": request.path,
+                            "status": resp.status,
+                            "resp_headers": dict(resp.headers),
+                            "resp_body_len": len(resp_body),
+                            "resp_body": self._decode_body_bytes(resp_body),
+                        })
                     return web.Response(
                         status=resp.status,
                         headers=hdrs,
@@ -589,6 +1026,14 @@ class PetkitLocalServer:
                     )
         except Exception as err:
             _LOGGER.error("PROXY failed for %s: %s", request.path, err)
+            if CAPTURE_MODE:
+                await self._capture_write({
+                    "ts": _time_mod.time(),
+                    "dir": "upstream_err",
+                    "method": request.method,
+                    "path": request.path,
+                    "error": str(err),
+                })
             return self._ok("success")
 
     async def _handle_post(self, request: web.Request) -> web.Response:
@@ -599,9 +1044,38 @@ class PetkitLocalServer:
         if request.host:
             self._own_host = request.host
 
+        # Capture raw body ONCE up front so we can both log it and forward/parse it
+        raw_body = await request.read()
+
+        if CAPTURE_MODE:
+            await self._capture_write({
+                "ts": _time_mod.time(),
+                "dir": "in",
+                "method": "POST",
+                "path": path,
+                "query": dict(request.query),
+                "host": request.host,
+                "remote": request.remote,
+                "headers": dict(request.headers),
+                "body_raw_len": len(raw_body),
+                "body": self._decode_body_bytes(raw_body),
+                "proxy_mode": PROXY_MODE,
+            })
+
         # If proxy mode active, forward ALL requests to real cloud
+        # EXCEPT dev_serverinfo — that one we ALWAYS answer locally so the
+        # feeder keeps pointing at us (otherwise real cloud hands back its
+        # real URL and the feeder escapes our proxy on next request).
+        if PROXY_MODE and norm.endswith("/d4/dev_serverinfo"):
+            _LOGGER.info("dev_serverinfo intercepted (PROXY bypassed) — keeping feeder glued to HA")
+            return await self._handle_serverinfo(await self._read_body(request))
+        # dev_iot_device_info: real cloud returns MQTT creds → feeder tries MQTT →
+        # blocked by firewall → feeder stuck in retry loop and stops HTTP heartbeats.
+        # Short-circuit with empty response so feeder stays in HTTP mode.
+        if PROXY_MODE and norm.endswith("/d4/dev_iot_device_info"):
+            _LOGGER.info("dev_iot_device_info intercepted (PROXY bypassed) — preventing MQTT attempt")
+            return self._ok({"sn": self._device_info.get("sn", "")})
         if PROXY_MODE:
-            raw_body = await request.read()
             try:
                 body_preview = raw_body.decode("utf-8", errors="replace")[:300]
             except Exception:
@@ -609,7 +1083,15 @@ class PetkitLocalServer:
             _LOGGER.info("PROXY IN: POST %s body=%s", path, body_preview)
             return await self._proxy_to_petkit(request, raw_body)
 
-        body = await self._read_body(request)
+        # Parse body for local handlers (URL-encoded → dict)
+        body = {}
+        if raw_body:
+            text = raw_body.decode("utf-8", errors="replace")
+            from urllib.parse import unquote
+            for pair in text.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    body[unquote(k)] = unquote(v)
 
         _LOGGER.debug("POST %s body=%s", path, str(body)[:300])
 
@@ -631,7 +1113,14 @@ class PetkitLocalServer:
             return self._ok({"sn": self._device_info.get("sn", "")})
 
         if norm.endswith("/d4/dev_ble_device"):
-            return self._ok([])
+            if self._ble_roster_provider is not None:
+                try:
+                    roster = self._ble_roster_provider()
+                except Exception:
+                    _LOGGER.exception("ble_roster_provider failed")
+                    roster = {"list": [], "nextTick": 3600}
+                return self._ok(roster)
+            return self._ok({"list": [], "nextTick": 3600})
 
         if norm.endswith("/d4/dev_feed_get"):
             return await self._handle_dev_feed_get(body)
@@ -683,6 +1172,13 @@ class PetkitLocalServer:
 
         if norm.endswith("/d4/ota_check"):
             return self._ok({"hasNewVersion": False, "version": self._device_info.get("firmware", "1.255")})
+
+        # ---- CTW3 fountain endpoints (optional — only if a handler is registered) ----
+        # The D4 (when acting as BLE relay) or the app posts fountain state/config
+        # here. We delegate everything under /ctw3/ to an optional registered
+        # handler; if none present we still respond 200 so the D4 doesn't retry.
+        if "/ctw3/" in norm:
+            return await self._handle_ctw3_request(norm, body, raw_body)
 
         if norm.endswith("/d4/ota_status"):
             return self._ok({"ota": 0})
@@ -778,6 +1274,12 @@ class PetkitLocalServer:
             state = json.loads(state_raw) if isinstance(state_raw, str) else state_raw
             self._device_state = state
             self._feeder_online = True
+            # Detect auto-refill from food-state transitions (0/-1 → 1/2).
+            # Has to happen BEFORE _persist + _notify_update so callers see
+            # the freshly-reset dispensed counter on this same tick.
+            food_now = state.get("food")
+            if isinstance(food_now, int):
+                self._check_food_refill_transition(food_now)
             self._notify_update()
             self._persist()
             # Full JSON — no truncation — so we see battery/voltage/pim/etc exactly as sent
@@ -811,6 +1313,23 @@ class PetkitLocalServer:
           feed_id format: r_YYYYMMDD_<ss>_<ss>-<seq>  (ss = seconds since midnight)
         """
         import time as _time
+        # Diagnostic: log a warning when a heartbeat arrives after an
+        # unusually long gap. D4 normally heartbeats every ~11 s; gaps
+        # >60 s typically mean the device was busy (BLE session,
+        # scheduled feed dispense, OTA check) or briefly off network.
+        # Logging the gap helps post-mortem when scheduled feeds miss.
+        if self._last_heartbeat:
+            try:
+                prev = datetime.fromisoformat(self._last_heartbeat)
+                gap_sec = (datetime.now(timezone.utc) - prev).total_seconds()
+                if gap_sec > 60:
+                    _LOGGER.warning(
+                        "D4 heartbeat gap of %.0f s (>60 s) — feeder was likely "
+                        "busy or briefly offline; queued feeds delivered now",
+                        gap_sec,
+                    )
+            except Exception:
+                pass
         self._heartbeat_count += 1
         self._last_heartbeat = datetime.now(timezone.utc).isoformat()
         self._feeder_online = True
@@ -857,6 +1376,11 @@ class PetkitLocalServer:
                 "status": 0,
                 "isExecuted": 1,
             })
+            # Decrement the estimated tank-fill counter — best-effort
+            # ("estimated" because we don't know if the feeder actually
+            # succeeded in dispensing; a jammed motor would leave food
+            # in the tank but we'd count it as gone).
+            self._account_for_dispense(amount)
             _LOGGER.info("FEED CMD pushed to feeder: %dg  id=%s", amount, feed_id)
             self._persist()
 
@@ -880,6 +1404,24 @@ class PetkitLocalServer:
                 "timestamp": now_sec,
             }]
             _LOGGER.info("SETTINGS push to feeder: %s", payload)
+
+        else:
+            # No feed/settings pending — ask any registered content providers
+            # (e.g. CTW3 fountain relay) whether they have something to push.
+            for provider in self._heartbeat_content_providers:
+                try:
+                    entry = provider()
+                except Exception:  # pragma: no cover
+                    _LOGGER.exception("heartbeat content provider failed")
+                    continue
+                if entry:
+                    result_list = [entry]
+                    _LOGGER.info(
+                        "heartbeat carrying provider content (type=%s)",
+                        (json.loads(entry.get("content", "{}")).get("type", "?")
+                         if isinstance(entry.get("content"), str) else "?"),
+                    )
+                    break
 
         response: dict = {"result": result_list}
 
@@ -910,31 +1452,32 @@ class PetkitLocalServer:
         (one per weekday, repeats=1..7). Items have {id, time, amount, name}.
         time = seconds since midnight (local time).
 
-        Strategy for feed delivery:
-        1. Include queued one-shot items at now+10s for today
-        2. Include ALL DAYS with the same item (to bypass day-of-week mapping uncertainty)
-        3. Include any explicitly set _feed_schedule items
+        Strategy 2026-04-25 — HA-driven schedule:
+        We DO NOT push the user's saved schedule to the feeder's flash
+        anymore. Reason: D4 firmware sometimes hangs (heap drift) and
+        misses scheduled feeds entirely. Instead HA tracks the schedule
+        and queues a manual feed via `queue_feed()` at the right time;
+        if the D4 happens to be hanging at that moment the feed sits in
+        our queue and fires when it next polls — typically <2 min later.
+
+        So this response is ALWAYS just empty schedule slots plus any
+        manually-queued feeds (from buttons, services, or HA-driven
+        scheduler) injected at now+10s.
         """
         from datetime import datetime
         now_sec = self._now_seconds()
 
-        # Base empty schedule: 7 days, no items
+        # Base empty schedule: 7 days, no items.  HA-driven mode never
+        # populates these days from `_feed_schedule` — that's only used
+        # by the time-change listener inside the HA integration setup.
         daily_list = [
             {"suspended": 0, "repeats": i, "items": []}
             for i in range(1, 8)
         ]
 
-        # If explicit schedule is set, use it (set via saveFeed endpoint or test hook)
-        if self._feed_schedule:
-            for entry in self._feed_schedule:
-                repeats = entry.get("repeats")
-                for d in daily_list:
-                    if d["repeats"] == repeats:
-                        d["items"] = entry.get("items", [])
-                        break
-
-        # If we have queued feeds, inject into ALL 7 days at now+10s
-        # (bypass day-of-week ambiguity)
+        # Queued one-shot feeds (manual buttons, scheduler, services).
+        # Inject into all 7 days at now+10s so the feeder fires it on
+        # whichever weekday it currently thinks today is.
         if self._feed_queue:
             items = []
             for i, cmd in enumerate(self._feed_queue):
@@ -946,8 +1489,7 @@ class PetkitLocalServer:
                     "name": "Manual",
                 })
             for entry in daily_list:
-                if not entry["items"]:
-                    entry["items"] = items
+                entry["items"] = items
             _LOGGER.debug("dev_feed_get: returning %d immediate feed items (all days)", len(items))
 
         _LOGGER.debug("dev_feed_get response: %s", json.dumps(daily_list)[:500])
@@ -968,8 +1510,18 @@ class PetkitLocalServer:
         })
 
     async def _handle_dev_event_report(self, body: dict) -> web.Response:
-        """Feeder reports events (e.g. manual button press, errors, feed executed)."""
+        """Feeder reports events (e.g. manual button press, errors, feed executed).
+
+        Also forwarded to any registered event-report handlers (e.g. the
+        CTW3 fountain relay, which watches for event_type=51/52/53 to
+        drive its BLE link state machine).
+        """
         _LOGGER.info("Feeder event: %s", str(body)[:500])
+        for handler in self._event_report_handlers:
+            try:
+                handler(body)
+            except Exception:
+                _LOGGER.exception("event_report handler failed")
         return self._ok("success")
 
     async def _handle_dev_device_info(self, body: dict) -> web.Response:
@@ -1056,10 +1608,13 @@ class PetkitLocalServer:
         })
 
     async def _handle_get_feed(self, body: dict) -> web.Response:
-        schedule = self._feed_schedule or [
+        # HA-driven schedule: feeder flash schedule is intentionally
+        # empty so the feeder never auto-fires. HA queues feeds via
+        # the time-change listener instead. See _handle_dev_feed_get.
+        empty = [
             {"suspended": 0, "repeats": i, "items": []} for i in range(1, 8)
         ]
-        return self._ok({"feedDailyList": schedule})
+        return self._ok({"feedDailyList": empty})
 
     async def _handle_save_feed(self, body: dict) -> web.Response:
         raw = body.get("feedDailyList", "[]")
@@ -1102,3 +1657,29 @@ class PetkitLocalServer:
         except json.JSONDecodeError:
             pass
         return self._ok("success")
+
+    async def _handle_ctw3_request(
+        self, norm_path: str, body: dict, raw_body: bytes
+    ) -> web.Response:
+        """Dispatch a CTW3 fountain POST to the registered private handler.
+
+        Falls back to a generic `"success"` response if no handler is
+        attached — keeps the D4 (or app) happy without knowing what the
+        request was about.
+        """
+        # Extract path suffix after /ctw3/ for convenience: "update", "link", ...
+        suffix = norm_path.split("/ctw3/", 1)[1] if "/ctw3/" in norm_path else norm_path
+        _LOGGER.info(
+            "CTW3 request: %s (body keys: %s, %d bytes raw)",
+            norm_path, list(body.keys())[:8], len(raw_body),
+        )
+        if self._ctw3_handler is None:
+            return self._ok("success")
+        try:
+            result = self._ctw3_handler(suffix, body, raw_body)
+        except Exception:  # pragma: no cover
+            _LOGGER.exception("CTW3 handler raised")
+            return self._ok("success")
+        if result is None:
+            return self._ok("success")
+        return self._ok(result)

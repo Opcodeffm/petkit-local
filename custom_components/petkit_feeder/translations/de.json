@@ -19,7 +19,64 @@
           "add": "Eintrag hinzufügen",
           "delete": "Eintrag entfernen",
           "clear": "Alle löschen",
+          "add_fountain": "Trinkbrunnen hinzufügen",
+          "remove_fountain": "Trinkbrunnen entfernen",
           "save": "Speichern und schließen"
+        }
+      },
+      "add_fountain": {
+        "title": "Trinkbrunnen hinzufügen",
+        "description": "Wie willst du dich an deinem Petkit-Konto anmelden? Nach der einmaligen Anmeldung holt die Integration die Geräte-Identifier aus der Petkit-Cloud — danach läuft alles lokal.",
+        "menu_options": {
+          "fountain_login": "Mit Email und Passwort anmelden",
+          "fountain_token": "Session-Token einfügen (Apple/Google-Login-User)",
+          "fountain_manual": "Manuelle Eingabe (für Power-User mit id+secret)"
+        }
+      },
+      "fountain_login": {
+        "title": "Petkit-Anmeldung",
+        "description": "Wir rufen einmalig /user/login auf, um einen Session-Token zu bekommen. Der Token wird lokal gespeichert und täglich erneuert. Dein Passwort wird nie gespeichert — es geht nur als MD5-Hash an Petkit (so verlangt es deren API).",
+        "data": {
+          "email": "Email",
+          "password": "Passwort",
+          "region": "Region"
+        }
+      },
+      "fountain_token": {
+        "title": "Session-Token einfügen",
+        "description": "Wenn du dich mit Apple, Google oder WeChat angemeldet hast, gibt es kein Passwort das wir nutzen können. Capture deinen X-Session-Token einmalig (z.B. mit mitmproxy / HTTP Catcher) und füge ihn hier ein. Der Token wird lokal gespeichert und täglich erneuert.",
+        "data": {
+          "token": "X-Session-Token",
+          "region": "Region"
+        }
+      },
+      "fountain_manual": {
+        "title": "Manuelle Trinkbrunnen-Eingabe",
+        "description": "ID, MAC, Secret und Seriennummer direkt eingeben. Nur sinnvoll wenn du diese Werte schon hast (z.B. aus einem alten Packet-Capture). Für normale User sind die anderen beiden Pfade einfacher.",
+        "data": {
+          "mac": "MAC-Adresse",
+          "secret": "Geräte-Secret (hex)",
+          "device_id": "Device-ID (Zahl)",
+          "sn": "Seriennummer",
+          "name": "Name",
+          "firmware": "Firmware-Version"
+        }
+      },
+      "fountain_select": {
+        "title": "Trinkbrunnen hinzufügen",
+        "description": "MAC und Seriennummer findest du in der Petkit-App unter Gerät → Einstellungen → Info. Den Rest (id, secret, Name, Firmware) holen wir uns automatisch aus der Cloud.\n\nGerade gefundene Geräte-Daten (falls vorhanden):\n  ID:       {id}\n  MAC:      {mac}\n  Serial:   {sn}\n  Secret:   {secret}\n  Firmware: {firmware}\n  Vorgeschlagener Name: {default_name}",
+        "data": {
+          "mac": "MAC-Adresse",
+          "sn": "Seriennummer",
+          "name": "Name (kannst du in HA jederzeit ändern)",
+          "confirm": "Trinkbrunnen hinzufügen"
+        }
+      },
+      "remove_fountain": {
+        "title": "Trinkbrunnen entfernen",
+        "description": "Welcher Trinkbrunnen soll entfernt werden?",
+        "data": {
+          "mac": "Trinkbrunnen"
         }
       },
       "add": {
@@ -41,7 +98,23 @@
       }
     },
     "abort": {
-      "invalid_schedule": "Plan ungültig (z.B. mehr als 10 Einträge pro Tag). Nichts gespeichert."
+      "invalid_schedule": "Plan ungültig (z.B. mehr als 10 Einträge pro Tag). Nichts gespeichert.",
+      "ctw3_not_available": "Trinkbrunnen-Erweiterung ist in dieser Installation nicht aktiviert."
+    },
+    "error": {
+      "invalid_mac": "Ungültige MAC-Adresse (12 Hex-Zeichen, z.B. aa:bb:cc:dd:ee:ff).",
+      "invalid_secret": "Secret muss Hex sein (0-9, a-f).",
+      "invalid_device_id": "Device-ID muss eine positive Zahl sein.",
+      "invalid_email": "Bitte eine gültige Email-Adresse eingeben.",
+      "invalid_password": "Passwort darf nicht leer sein.",
+      "invalid_auth": "Petkit hat den Login abgelehnt. Email und Passwort prüfen.",
+      "cloud_unreachable": "Konnte die Petkit-Cloud nicht erreichen. Internetverbindung prüfen.",
+      "no_session_returned": "Petkit hat den Login akzeptiert, aber keinen Session-Token zurückgegeben. Nochmal versuchen.",
+      "invalid_token_length": "Token sieht falsch aus (32-128 Zeichen erwartet). Prüfe ob du den vollständigen X-Session-Header kopiert hast.",
+      "invalid_token": "Petkit hat den Token abgelehnt. Möglicherweise ausgelaufen — bitte neu capturen.",
+      "session_lost": "Die Session ging während des Vorgangs verloren. Bitte von vorn anfangen.",
+      "fountain_lookup_failed": "Petkit-Cloud hat den Lookup abgelehnt. Prüfe ob MAC und Seriennummer zu einem Trinkbrunnen in deinem Account passen.",
+      "fountain_no_secret": "Petkit-Cloud lieferte ein Ergebnis, aber keinen Secret. Meist heißt das, dass der Trinkbrunnen nicht zu deinem Account gehört."
     }
   },
   "selector": {
@@ -59,11 +132,15 @@
   },
   "entity": {
     "sensor": {
+      "food_remaining_pct": { "name": "Futter verbleibend (geschätzt)" },
+      "food_remaining_grams": { "name": "Futter verbleibend (Gramm)" },
       "food_container": {
         "name": "Futterbehälter",
         "state": {
           "ok": "Futter vorhanden",
-          "empty": "Leer"
+          "low": "Niedrig (unter Schwelle)",
+          "empty": "Leer",
+          "unknown": "Unbekannt"
         }
       },
       "desiccant_days_left": { "name": "Trockenmittel Tage übrig" },
@@ -94,25 +171,82 @@
       "heartbeat_count": { "name": "Heartbeat-Count" },
       "battery_voltage": { "name": "Batteriespannung" },
       "heap_free": { "name": "RAM frei" },
-      "feed_schedule": { "name": "Fütterungsplan" }
+      "feed_schedule": { "name": "Fütterungsplan" },
+      "ctw3_filter_percent": { "name": "Filter Restlaufzeit" },
+      "ctw3_battery_percent": { "name": "Akku" },
+      "ctw3_battery_voltage": { "name": "Akku-Spannung" },
+      "ctw3_today_pump_runtime": { "name": "Pumpen-Laufzeit heute" },
+      "ctw3_drinks_today": { "name": "Trinkereignisse heute" },
+      "ctw3_last_drink_duration": { "name": "Letzter Trinkvorgang: Dauer" },
+      "ctw3_last_drink_at": { "name": "Letzter Trinkvorgang" },
+      "ctw3_total_drink_time_today": { "name": "Gesamte Trinkdauer heute" },
+      "ctw3_mode_sensor": {
+        "name": "Trinkbrunnen-Modus",
+        "state": {
+          "smart": "Smart",
+          "normal": "Normal",
+          "intermittent": "Intervall"
+        }
+      }
     },
     "binary_sensor": {
       "online": { "name": "Verbindung" },
       "motor_error": { "name": "Motor-Fehler" },
       "rtc_error": { "name": "RTC-Fehler" },
       "ir_sensor_error": { "name": "IR-Sensor-Fehler" },
-      "dc_error": { "name": "DC-Fehler" }
+      "dc_error": { "name": "DC-Fehler" },
+      "ctw3_pump_running": { "name": "Pumpe läuft" },
+      "ctw3_motion_detected": { "name": "Bewegung erkannt" },
+      "ctw3_low_battery": { "name": "Akku schwach" },
+      "ctw3_filter_warning": { "name": "Filter-Warnung" },
+      "ctw3_lack_warning": { "name": "Wasser niedrig" },
+      "ctw3_breakdown_warning": { "name": "Störungs-Warnung" }
     },
     "button": {
-      "feed_1_portion": { "name": "Füttern 1 Portion" },
-      "feed_2_portions": { "name": "Füttern 2 Portionen" },
-      "feed_5_portions": { "name": "Füttern 5 Portionen" },
-      "reset_desiccant": { "name": "Trockenmittel zurücksetzen" }
+      "feed_1_portion": { "name": "Füttern 10 g" },
+      "feed_2_portions": { "name": "Füttern 20 g" },
+      "feed_5_portions": { "name": "Füttern 50 g" },
+      "reset_desiccant": { "name": "Trockenmittel zurücksetzen" },
+      "ctw3_reset_filter": { "name": "Filter zurücksetzen" }
     },
     "switch": {
       "feed_sound": { "name": "Fütterungston" },
       "manual_lock": { "name": "Tastensperre" },
-      "light_mode": { "name": "LED-Anzeige" }
+      "light_mode": { "name": "LED-Anzeige" },
+      "ctw3_power": { "name": "Pumpe" },
+      "ctw3_suspend": { "name": "Pumpe pausieren" },
+      "ctw3_lamp": { "name": "Anzeigeleuchte" },
+      "ctw3_no_disturb": { "name": "Nicht stören" },
+      "ctw3_smart_inductive": { "name": "Bewegungssensor (Standard-Modus)" },
+      "ctw3_battery_inductive": { "name": "Bewegungssensor (Akku-Modus)" }
+    },
+    "select": {
+      "ctw3_mode": {
+        "name": "Modus",
+        "state": {
+          "smart": "Standard",
+          "normal": "Intermittierend",
+          "intermittent": "Intervall (legacy)"
+        }
+      },
+      "ctw3_lamp_brightness": {
+        "name": "LED-Helligkeit",
+        "state": {
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch"
+        }
+      }
+    },
+    "number": {
+      "ctw3_intermittent_pump_on_time": { "name": "Intervall: Pumpzeit (Netz)" },
+      "ctw3_intermittent_pump_off_time": { "name": "Intervall: Pausenzeit (Netz)" },
+      "ctw3_battery_pump_on_time": { "name": "Akku: Pumpzeit" },
+      "ctw3_battery_pump_off_time": { "name": "Akku: Pausenzeit" }
+    },
+    "time": {
+      "ctw3_dnd_start": { "name": "Ruhezeit Anfang" },
+      "ctw3_dnd_stop": { "name": "Ruhezeit Ende" }
     }
   },
   "services": {

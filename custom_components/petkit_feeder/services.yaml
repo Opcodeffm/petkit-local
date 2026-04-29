@@ -48,3 +48,29 @@ feed:
           max: 200
           step: 1
           unit_of_measurement: g
+
+set_food_full:
+  name: Mark food tank as freshly filled
+  description: >
+    Resets the dispensed-since-refill counter so the
+    sensor.food_remaining_pct jumps back to 100%. Use after physically
+    refilling the tank if the integration's auto-detection didn't fire.
+
+set_food_tank_capacity:
+  name: Set food tank capacity
+  description: >
+    Override the tank-capacity-in-grams assumption (default 1700g).
+    Affects the food_remaining_pct estimation.
+  fields:
+    grams:
+      name: Capacity (g)
+      description: Total grams the tank holds when full (100-5000).
+      required: true
+      example: 1700
+      selector:
+        number:
+          min: 100
+          max: 5000
+          step: 50
+          unit_of_measurement: g
+          mode: box

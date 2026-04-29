@@ -25,11 +25,38 @@ from .coordinator import PetkitFeederCoordinator
 SENSOR_DESCRIPTIONS: list[SensorEntityDescription] = [
     # --- Main sensors (main device view) ---
     SensorEntityDescription(
+        key="food_remaining_pct",
+        translation_key="food_remaining_pct",
+        icon="mdi:silverware-fork-knife",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="food_remaining_grams",
+        translation_key="food_remaining_grams",
+        icon="mdi:scale",
+        native_unit_of_measurement="g",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    SensorEntityDescription(
         key="food_state",
         translation_key="food_container",
         icon="mdi:food-drumstick",
         device_class=SensorDeviceClass.ENUM,
-        options=["ok", "empty"],
+        # Maps the D4 firmware's `food` state field, which has four
+        # discrete values (verified via APK decomp of the iOS Petkit
+        # app, file D4HomeDeviceView.java line 646–656):
+        #   -1 → unknown / sensor not reading (rare)
+        #    0 → empty (tank ran out)
+        #    1 → ok (above the user-configured warn threshold)
+        #    2 → low (below threshold but not yet empty)
+        # The threshold is set in the official app under "Food shortage
+        # alert" and persisted via `foodWarnRange`. Petkit's own UI uses
+        # these states to show different warnings (No-food dialog at 0,
+        # Surplus-grain-early-warning dialog at 2). This integration
+        # surfaces them as a single ENUM sensor.
+        options=["ok", "low", "empty", "unknown"],
     ),
     SensorEntityDescription(
         key="desiccant_days_left",
@@ -148,6 +175,15 @@ async def async_setup_entry(
         for description in SENSOR_DESCRIPTIONS
     ]
     entities.append(PetkitScheduleSensor(coordinator))
+
+    # Optional CTW3 fountain sensors
+    try:
+        from .ctw3_entities import get_ctw3_sensors
+        for coord in (hass.data.get(DOMAIN, {}).get("_fountain_coordinators") or {}).values():
+            entities.extend(get_ctw3_sensors(coord))
+    except ImportError:
+        pass
+
     async_add_entities(entities)
 
 
@@ -169,8 +205,19 @@ class PetkitFeederSensor(CoordinatorEntity[PetkitFeederCoordinator], SensorEntit
         value = self.coordinator.data.get(self.entity_description.key)
         key = self.entity_description.key
         if key == "food_state":
-            # Returns translation key — matches entity.sensor.food_container.state.{ok,empty}
-            return "ok" if value == 1 else "empty"
+            # Returns translation key — matches entity.sensor.food_container.state.*
+            # Mapping comes from D4 firmware (see SENSOR_DESCRIPTIONS comment).
+            return {
+                1: "ok",
+                2: "low",
+                0: "empty",
+                -1: "unknown",
+            }.get(value, "unknown")
+        if key in ("food_remaining_pct", "food_remaining_grams") and value is None:
+            # No refill baseline yet — sensor shows as "unknown" to the
+            # user, prompting them to call the set_food_full service or
+            # wait for an auto-detected refill.
+            return None
         if key == "wifi_rssi" and value == 0:
             return None
         if key == "firmware" and (value in (None, "", "unknown")):

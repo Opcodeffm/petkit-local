@@ -27,7 +27,17 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: PetkitFeederCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([PetkitSettingSwitch(coordinator, c) for c in SWITCH_CONFIGS])
+    entities: list = [PetkitSettingSwitch(coordinator, c) for c in SWITCH_CONFIGS]
+
+    # Optional CTW3 fountain switches
+    try:
+        from .ctw3_entities import get_ctw3_switches
+        for coord in (hass.data.get(DOMAIN, {}).get("_fountain_coordinators") or {}).values():
+            entities.extend(get_ctw3_switches(coord))
+    except ImportError:
+        pass
+
+    async_add_entities(entities)
 
 
 class PetkitSettingSwitch(CoordinatorEntity[PetkitFeederCoordinator], SwitchEntity):

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Transparent icon variant for home-assistant/brands repo -->
+  <!-- No background, shield fills most of the viewport, cat centered -->
+
+  <!-- Hexagonal shield — filled blue so it's visible on any HA theme -->
+  <g transform="translate(256, 256)">
+    <!-- Shield outline + fill -->
+    <path d="M 0 -220 L 180 -125 L 180 95 Q 180 190 0 232 Q -180 190 -180 95 L -180 -125 Z"
+          fill="#1e40af"
+          stroke="#60a5fa"
+          stroke-width="6"/>
+
+    <!-- Inner hex frame -->
+    <path d="M 0 -196 L 158 -108 L 158 82 Q 158 170 0 208 Q -158 170 -158 82 L -158 -108 Z"
+          fill="none"
+          stroke="#93c5fd"
+          stroke-width="2"
+          opacity="0.5"/>
+
+    <!-- Cat head silhouette — 5% smaller, centered exactly in shield -->
+    <g fill="#ffffff" transform="translate(0, 36) scale(0.95)">
+      <!-- Ears (pointed) -->
+      <path d="M -136 -120 L -95 -200 L -53 -105 Z"/>
+      <path d="M 53 -105 L 95 -200 L 136 -120 Z"/>
+      <!-- Inner ears (darker, smaller) -->
+      <path d="M -117 -125 L -95 -175 L -72 -115 Z" fill="#1e40af"/>
+      <path d="M 72 -115 L 95 -175 L 117 -125 Z" fill="#1e40af"/>
+      <!-- Face (rounded wide head) -->
+      <path d="M -146 -70 Q -150 -120 -100 -135 L 100 -135 Q 150 -120 146 -70 L 146 30 Q 146 95 80 120 Q 40 138 0 138 Q -40 138 -80 120 Q -146 95 -146 30 Z"/>
+      <!-- Eyes (slanted, sharp) -->
+      <g fill="#1e40af">
+        <path d="M -78 -28 L -40 -42 L -45 -10 L -80 -4 Z"/>
+        <path d="M 78 -28 L 40 -42 L 45 -10 L 80 -4 Z"/>
+      </g>
+      <!-- Nose -->
+      <path d="M -12 30 L 12 30 L 0 50 Z" fill="#1e40af"/>
+      <!-- Mouth -->
+      <path d="M 0 50 L 0 68" stroke="#1e40af" stroke-width="3" fill="none"/>
+      <path d="M -18 72 Q 0 82 18 72" stroke="#1e40af" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

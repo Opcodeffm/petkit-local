@@ -13,4 +13,4 @@ CONF_DEVICE_NAME = "device_name"
 DEFAULT_SCAN_INTERVAL = 15  # seconds — feeder heartbeats every ~10s
 
 # Platforms
-PLATFORMS = ["sensor", "binary_sensor", "button", "switch"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "switch", "select", "number", "time"]

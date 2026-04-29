@@ -92,7 +92,12 @@ class PetkitFeederCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         schedule = self.server.schedule_summary()
 
         # --- Stale-based online detection ---
-        # Feeder heartbeats ~every 11s. If last heartbeat > 60s ago, treat as offline.
+        # Feeder heartbeats ~every 11s. Threshold of 180s (instead of the
+        # original 60s) tolerates the brief outages observed when the
+        # firmware is busy with a scheduled feed dispense, BLE relay
+        # session, or OTA check. Anything longer than that is likely a
+        # real network/power issue.
+        OFFLINE_THRESHOLD_SEC = 180
         last_hb_str = self.server.last_heartbeat
         last_hb_dt: datetime | None = None
         online: bool = False
@@ -101,7 +106,9 @@ class PetkitFeederCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 last_hb_dt = datetime.fromisoformat(last_hb_str)
                 if last_hb_dt.tzinfo is None:
                     last_hb_dt = last_hb_dt.replace(tzinfo=timezone.utc)
-                online = (datetime.now(timezone.utc) - last_hb_dt) < timedelta(seconds=60)
+                online = (datetime.now(timezone.utc) - last_hb_dt) < timedelta(
+                    seconds=OFFLINE_THRESHOLD_SEC
+                )
             except (ValueError, TypeError):
                 online = False
 
@@ -140,6 +147,11 @@ class PetkitFeederCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "feed_today": today_feeds,
             "feed_today_count": len(today_feeds),
             "feed_today_amount": sum(f.get("amount", 0) for f in today_feeds),
+            "food_remaining_pct": self.server.food_remaining_percent(),
+            "food_remaining_grams": self.server.food_remaining_grams(),
+            "food_tank_capacity_g": self.server.food_tank_capacity_g,
+            "food_dispensed_since_refill_g": self.server._food_dispensed_since_refill_g,
+            "food_refill_at": self.server._food_refill_at,
             "heartbeat_count": self.server.heartbeat_count,
             "last_heartbeat": self.server.last_heartbeat,
             "heap_free": self.server.heap,

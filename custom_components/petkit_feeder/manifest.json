@@ -4,10 +4,10 @@
   "codeowners": ["@Opcodeffm"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Opcodeffm/petkit-feeder-local",
-  "issue_tracker": "https://github.com/Opcodeffm/petkit-feeder-local/issues",
+  "documentation": "https://github.com/Opcodeffm/petkit-local",
+  "issue_tracker": "https://github.com/Opcodeffm/petkit-local/issues",
   "iot_class": "local_push",
   "requirements": [],
-  "version": "2.0.0",
+  "version": "2.1.0",
   "integration_type": "device"
 }

@@ -24,3 +24,17 @@ home-assistant_v2.db*
 # Dev-only notes not meant for the repo
 NOTES.local.md
 SCRATCH/
+
+# Private research artifacts — NOT for publication
+docs/path_b_evidence/
+*.flow
+petkit_capture*.jsonl*
+
+# Private notes / drafts that still live alongside the integration
+# (PDIEGMANN_ISSUE_DRAFT.md, PUBLIC_README_FRAGMENT.md, ...). Code that
+# was previously here moved to top-level when CTW3 went public 2026-04-29.
+custom_components/petkit_feeder/private/
+private/
+
+# Local project memory for Claude sessions — contains device IDs, secrets, tokens
+CLAUDE.md

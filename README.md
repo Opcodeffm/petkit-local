@@ -5,7 +5,8 @@
 <h1 align="center">Petkit Feeder Local</h1>
 
 <p align="center">
-  <em>A fully local Home Assistant integration for the Petkit Fresh Element Solo (D4) feeder.<br>
+  <em>A fully local Home Assistant integration for the Petkit Fresh Element Solo (D4) feeder<br>
+  and the Eversweet Max 2 Cordless (CTW3) water fountain.<br>
   Zero bytes sent to Petkit. Zero cloud dependency. Zero telemetry to China.</em>
 </p>
 
@@ -27,9 +28,9 @@ constantly: heartbeats every 11 seconds over plaintext HTTP to
 app that demands location permission just to read your WiFi SSID.
 
 It also has [real security issues](SECURITY.md) — unauthenticated
-remote command execution, no TLS, no integrity checks on BLE
-provisioning. If you can intercept the HTTP traffic, you can control the
-feeder.
+remote device control over plain HTTP, no TLS, no integrity checks on
+BLE provisioning. If you can intercept the HTTP traffic, you can
+control the feeder.
 
 So: **we replaced the cloud with a local Home Assistant integration** that
 reimplements just enough of the D4 protocol to keep the feeder happy while
@@ -86,8 +87,8 @@ the unit runs indefinitely without any of that data leaving the house.
       <sub><em>Options flow — manage the feeding plan.</em></sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/images/addentry.png" width="360" alt="Add entry form"><br>
-      <sub><em>Add-entry form with time picker, gram slider, weekdays.</em></sub>
+      <img src="docs/images/addentry.jpg" width="360" alt="Add entry form"><br>
+      <sub><em>Add-entry form with time picker, portion dropdown, weekdays.</em></sub>
     </td>
   </tr>
 </table>
@@ -98,6 +99,21 @@ the unit runs indefinitely without any of that data leaving the house.
   <img src="docs/images/lovelace.png" width="480" alt="Lovelace dashboard card"><br>
   <sub><em>Optional Lovelace card — drop-in YAML in <a href="docs/dashboard_card.yaml"><code>docs/dashboard_card.yaml</code></a>.</em></sub>
 </p>
+
+<br>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/fountain_device.jpg" width="360" alt="CTW3 water fountain — overview"><br>
+      <sub><em>Eversweet Max 2 (CTW3) — drink counters, pump status, mode select, controls.</em></sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/fountain_settings.jpg" width="360" alt="CTW3 — settings + diagnostics"><br>
+      <sub><em>Settings + diagnostics — DND, motion sensors, LED, filter, battery.</em></sub>
+    </td>
+  </tr>
+</table>
 
 ## How it works
 
@@ -122,11 +138,12 @@ reporting, and command pushes.
 
 ## Supported devices
 
-This integration is built and tested for the following Petkit feeder:
-
 ### Tested ✅
 
 - **Petkit Fresh Element Solo (D4)**, firmware `1.267` — full feature support
+- **Petkit Eversweet Max 2 Cordless (CTW3)**, firmware `1.11` — full feature
+  support, BLE-relayed via the D4 (no WiFi of its own). See
+  [Water fountain (optional)](#water-fountain-optional) below for onboarding.
 
 ### Likely compatible for feeding, NOT for video (untested on our end)
 
@@ -173,7 +190,7 @@ and lets you replace the camera later independently of the feeder.
 
 **Via HACS (recommended once merged):**
 1. HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/Opcodeffm/petkit-feeder-local`, category *Integration*
+2. Add `https://github.com/Opcodeffm/petkit-local`, category *Integration*
 3. Install *Petkit Feeder Local*, restart HA
 
 **Manually:**
@@ -242,15 +259,33 @@ Settings → Devices & Services → Add Integration → "Petkit Feeder Local"
 Settings → Devices & Services → *Petkit Feeder Local* → **CONFIGURE**.
 A menu appears:
 
-- **Add entry** — time picker, amount slider (1–200 g), weekday
-  checkboxes, optional name
+- **Add entry** — time picker, amount dropdown (10 g / 20 g / 50 g —
+  matches the feeder's hardware granularity), weekday checkboxes,
+  optional name
 - **Remove entry** — pick and delete
 - **Clear all**
 - **Save and close** — pushes to feeder and persists across HA restarts
 
-The schedule is stored both in HA (survives HA restart) and on the
-feeder's flash (survives power loss — this is why the feeder has an
-integrated battery).
+The schedule lives in **Home Assistant**, not in the feeder's flash. A
+time-change listener fires once per minute and pushes a manual feed
+command via the existing `queue_feed()` path — that way scheduled feeds
+arrive even when the D4 firmware is in one of its periodic
+heap-watchdog stalls (the feeder catches up with the queued command on
+its next heartbeat after recovery).
+
+> **⚠️ Power-failure caveat.** Because the schedule no longer lives in
+> the feeder's flash, the feeder's integrated battery only keeps it
+> *connected*; it does **not** keep it *feeding* if your Home Assistant
+> host loses power. If reliability across power outages matters (it
+> usually does for pet feeders), put your HA host on a small UPS. A
+> ~30 W mini-PC + UPS combo runs for hours on a 600 VA unit.
+>
+> Why we made this trade-off: the feeder's autonomous schedule used to
+> miss feeds when the firmware's BLE-relay heap drift caused a hang.
+> HA-driven scheduling absorbs those hangs. We picked "robust against
+> firmware bugs" over "robust against my power going out", since the
+> latter is solvable with a $50 UPS and the former wasn't solvable at
+> all.
 
 ### Services
 
@@ -258,6 +293,8 @@ integrated battery).
 - `petkit_feeder.clear_schedule` — wipe all entries
 - `petkit_feeder.feed` — manually dispense (accepts `amount` in grams)
 - `petkit_feeder.reset_desiccant` — reset the silica-gel timer after changing the pack
+- `petkit_feeder.set_food_full` — mark the tank as freshly filled (resets the *Food remaining (estimated)* sensor to 100%)
+- `petkit_feeder.set_food_tank_capacity` — override the assumed full-tank capacity (default 1700 g)
 
 ### Dashboard card
 
@@ -307,6 +344,101 @@ Replace `sensor.petkit_feeder_firmware` with your actual entity ID
 (find it under Settings → Devices & Services → Petkit Feeder Local →
 the device → *Firmware* diagnostic entity).
 
+## Water fountain (optional)
+
+The integration also supports the **Petkit Eversweet Max 2 Cordless
+(CTW3)** water fountain. The fountain has no WiFi of its own — it
+relays everything through the D4 over Bluetooth. After a one-time
+onboarding step, the fountain runs **fully locally**: same as the
+feeder, no cloud calls during normal operation.
+
+### Why the one-time cloud step
+
+Each fountain has a `secret` that Petkit's cloud generates during
+factory pairing. The fountain validates this secret on every BLE
+session opened by the D4. There is no way to extract the secret from
+the fountain itself (we tested), so we have to retrieve it from
+Petkit's cloud once, store it locally, and never call the cloud again
+for fountain operation.
+
+After onboarding, the only ongoing cloud interaction is a daily
+`/user/refreshsession` call at 03:30 local time to keep the session
+token alive. If the cloud goes away entirely, your fountain keeps
+working — only adding *new* fountains would break.
+
+### How to add a fountain
+
+Settings → Devices & Services → *Petkit Feeder Local* → **Configure** →
+**Add water fountain**. Pick one of three authentication paths:
+
+#### 1. Email + password (most users)
+
+If you signed up to your Petkit account with email + password, just
+enter them. We call `/user/login` once, store the resulting session
+token locally, and continue. **Your password is not stored** — only its
+MD5 hash is sent to Petkit (per their API), and we discard it after the
+login call returns.
+
+#### 2. Session token (Apple / Google / WeChat sign-in users)
+
+If you signed in via Apple/Google/WeChat, you don't have a password.
+Instead, capture your `X-Session` token once and paste it. The token
+ages in the same way as a normal session, so daily refresh keeps it
+alive forever.
+
+To capture the token:
+
+- **Easiest (Mac/Linux laptop):** Run `mitmproxy --listen-port 8080`,
+  set your iPhone's Wi-Fi proxy to your laptop:8080, install the
+  `mitmproxy-ca-cert.pem` profile on the phone, open the Petkit app,
+  pull-to-refresh on the device list. In mitmproxy, find any request
+  to `api.eu-pet.com`, look for the `X-Session` header, copy the value.
+- **iOS app alternative:** Install [HTTP Catcher](https://apps.apple.com/app/http-catcher/id1502865661)
+  (free, no jailbreak), enable HTTPS decryption, install its certificate
+  profile, open Petkit. Find any `api.eu-pet.com` request and copy the
+  `X-Session` header.
+- **Android app alternative:** [HttpCanary](https://github.com/MegatronKing/HttpCanary)
+  works similarly.
+
+The token is a 52-character string. Paste it into the form, hit Submit,
+done.
+
+#### 3. Manual entry (advanced)
+
+If you already have a fountain's `id`, `mac`, and `secret` from your own
+prior packet capture, you can enter them directly. No cloud calls at
+all in this path. Useful for power users and for testing.
+
+### After authentication
+
+Whichever path you took, the next step asks for the fountain's
+**MAC address** and **serial number**. Both are visible in the official
+Petkit app under *Device → Settings → Info*. Enter them, hit Submit,
+and the integration calls `/ctw3/signup` once to fetch everything else.
+A confirmation card shows the fetched device data (with the secret
+truncated for safety). Click *Add this fountain* and the integration
+reloads, exposing the fountain's entities.
+
+### What the fountain integration does NOT do
+
+- We don't auto-discover fountains. You provide MAC + SN. This is by
+  design — Petkit's `/discovery/device_roster_v2` returned empty for
+  our test account, and `/ctw3/owndevices` is similarly unreliable.
+  MAC + SN copied from the app is the single canonical path.
+- We don't pair new fountains. Pair via the official Petkit app first;
+  our integration onboards an *already-paired* fountain into HA.
+- We don't write any cloud configuration. All settings (mode,
+  brightness, sleep timers, motion sensors, etc.) are sent over BLE
+  via the D4 relay.
+
+### Related projects
+
+[`maksym-pasichnyk/PetKit-Eversweet-Max`](https://github.com/maksym-pasichnyk/PetKit-Eversweet-Max)
+takes the alternative architecture: phone-as-BLE-proxy directly to the
+CTW3, no D4 involved. Different trade-offs — useful if you only have a
+fountain (no D4 feeder), but requires keeping a phone-style BLE proxy
+running 24/7.
+
 ## Timing & quirks
 
 - **After HA restart**: the feeder sends a state-report roughly every
@@ -326,7 +458,7 @@ the device → *Firmware* diagnostic entity).
 
 | Entity | Purpose |
 |---|---|
-| `binary_sensor.*_verbindung` / `_connection` | Online / offline (stale-detection after 60s) |
+| `binary_sensor.*_verbindung` / `_connection` | Online / offline (stale-detection after 180s) |
 | `binary_sensor.*_motor_fehler` / `_motor_error` | Motor jammed / failed |
 | `binary_sensor.*_rtc_fehler` / `_rtc_error` | Feeder has no valid time (schedule won't run!) |
 | `binary_sensor.*_ir_sensor_fehler` *(opt-in)* | IR-sensor error (food detection) |
@@ -335,7 +467,9 @@ the device → *Firmware* diagnostic entity).
 | `sensor.*_batterie` / `_battery` | Battery level in % (5× AA, 6500–8000 mV range) |
 | `sensor.*_batteriestatus` / `_battery_status` | OK / Niedrig / Running on battery / No batteries |
 | `sensor.*_stromquelle` / `_power_source` | Mains (USB/DC) vs. battery |
-| `sensor.*_futterbehalter` / `_food_container` | Full / empty |
+| `sensor.*_futterbehalter` / `_food_container` | OK / low / empty / unknown (firmware ENUM, not a percentage) |
+| `sensor.*_food_remaining_estimated` | Estimated tank fill in % (counts grams since last refill against `tank_capacity_g`, default 1700; auto-resets when firmware reports a refill, manual reset via `set_food_full`) |
+| *(diagnostic, opt-in)* `sensor.*_food_remaining_grams` | Same as above but in grams |
 | `sensor.*_trockenmittel_tage_ubrig` / `_desiccant_days_left` | 0–30 day counter |
 | `sensor.*_futterungen_heute` / `_feedings_today` | Today's feeding count |
 | `sensor.*_futtermenge_heute` / `_food_amount_today` | Today's dispensed grams |
@@ -348,7 +482,7 @@ the device → *Firmware* diagnostic entity).
 | `switch.*_futterungston` / `_feed_sound` | Feeding sound on/off |
 | `switch.*_tastensperre` / `_manual_lock` | Physical button lock |
 | `switch.*_led_anzeige` / `_led_display` | LED on/off |
-| `button.*_futtern_*` / `_feed_*` | 1 / 2 / 5-portion feed buttons |
+| `button.*_futtern_*` / `_feed_*` | Manual feed buttons (10 g / 20 g / 50 g) |
 | `button.*_trockenmittel_zurucksetzen` / `_reset_desiccant` | Reset silica-gel counter |
 
 ## Security
@@ -393,6 +527,14 @@ Please:
 - Keep the integration **local-only**. No cloud callbacks, no telemetry.
 - Don't commit real MAC addresses, SSIDs, passwords, or firmware captures.
 - If you add a new feature, update the README entities table.
+
+## Acknowledgments
+
+Reverse engineering of the D4 cloud and BLE protocols, as well as the
+Home Assistant integration code, was done with substantial assistance
+from [Claude](https://www.anthropic.com/claude) (Anthropic). Hardware
+testing, captures, hypothesis validation, and all design decisions by
+[Opcodeffm](https://github.com/Opcodeffm).
 
 ## License
 
