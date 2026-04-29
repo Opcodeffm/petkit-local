@@ -1,29 +1,31 @@
 # CVE Submission Drafts
 
-Ready-to-paste blocks for MITRE's public CVE request form at
-<https://cveform.mitre.org/>.
+> **Status: Submitted to MITRE on 2026-04-23 — awaiting CVE ID assignment.**
+> All four findings (F-01 … F-04) were sent as a single request via
+> <https://cveform.mitre.org/>. MITRE typically responds in 2–6 weeks.
+> Once the IDs arrive they will be recorded in the status table below and
+> back-filled into [`SECURITY.md`](SECURITY.md).
 
-> **Important:** these drafts reference
-> `https://github.com/Opcodeffm/petkit-feeder-local/blob/main/SECURITY.md`.
-> That URL only works once the repository is public. Make the repo public
-> **before** submitting. MITRE will reject requests with private /
-> inaccessible references.
+## Assignment status
 
-## Submission workflow (per finding)
-
-1. Go to <https://cveform.mitre.org/>
-2. *Select a request type* → **Request a CVE ID**
-3. Fill the form using the block below (one submission per finding — four in total)
-4. Leave "Have you been in contact with the vendor?" → **No**
-5. Submit. MITRE sends a confirmation email and (typically 2–6 weeks later) a CVE ID.
-6. Once assigned, add the CVE IDs back into `SECURITY.md` and this file, then re-commit.
-
-Each block is labeled to match the MITRE form field. Copy paste one section
-per submission.
+| Finding | CVE ID | Submitted | Assigned |
+|---|---|---|---|
+| F-01 — Unauthenticated remote device control via HTTP command channel | *pending* | 2026-04-23 | — |
+| F-02 — BLE provisioning accepts arbitrary server URL without authentication | *pending* | 2026-04-23 | — |
+| F-03 — Cleartext transmission of device state and commands | *pending* | 2026-04-23 | — |
+| F-04 — Missing encryption / integrity controls on BLE channel | *pending* | 2026-04-23 | — |
 
 ---
 
-## F-01 · Unauthenticated remote command execution via HTTP cloud channel
+The rest of this file preserves the exact text that was submitted, in
+case MITRE asks for clarification or a re-send.
+
+Each block below is labeled to match the MITRE form field, preserved
+verbatim as submitted.
+
+---
+
+## F-01 · Unauthenticated remote device control via HTTP command channel
 
 **Vulnerability type:** Authentication
 **CWE:** [CWE-306: Missing Authentication for Critical Function](https://cwe.mitre.org/data/definitions/306.html)
@@ -53,7 +55,12 @@ Remote
 
 ### Impact
 ```
-Code Execution: yes (attacker can trigger feed commands and push settings)
+Code Execution: no (attacker invokes existing device commands —
+  feeding, schedule push, settings change — but no arbitrary code
+  runs on the device)
+Other: Unauthorized device control / abuse of intended functionality
+  (integrity of device behavior is fully compromised: arbitrary feeds,
+  schedule rewrites, config push, no consent or owner action required)
 Denial of Service: yes (bogus commands can exhaust food or block motor)
 ```
 
@@ -91,7 +98,7 @@ Opcodeffm (independent researcher)
 
 ### References
 ```
-https://github.com/Opcodeffm/petkit-feeder-local/blob/main/SECURITY.md#f-01--unauthenticated-remote-command-execution-via-http-cloud-channel
+https://github.com/Opcodeffm/petkit-local/blob/main/SECURITY.md#f-01--unauthenticated-remote-device-control-via-http-command-channel
 ```
 
 ### Additional information
@@ -175,7 +182,7 @@ Opcodeffm (independent researcher)
 
 ### References
 ```
-https://github.com/Opcodeffm/petkit-feeder-local/blob/main/SECURITY.md#f-02--ble-provisioning-accepts-arbitrary-server-url
+https://github.com/Opcodeffm/petkit-local/blob/main/SECURITY.md#f-02--ble-provisioning-accepts-arbitrary-server-url
 ```
 
 ### Additional information
@@ -254,7 +261,7 @@ Opcodeffm (independent researcher)
 
 ### References
 ```
-https://github.com/Opcodeffm/petkit-feeder-local/blob/main/SECURITY.md#f-03--cleartext-transmission-of-device-state-and-commands
+https://github.com/Opcodeffm/petkit-local/blob/main/SECURITY.md#f-03--cleartext-transmission-of-device-state-and-commands
 ```
 
 ---
@@ -328,7 +335,7 @@ Opcodeffm (independent researcher)
 
 ### References
 ```
-https://github.com/Opcodeffm/petkit-feeder-local/blob/main/SECURITY.md#f-04--missing-integrity-controls-on-ble-channel
+https://github.com/Opcodeffm/petkit-local/blob/main/SECURITY.md#f-04--missing-integrity-controls-on-ble-channel
 ```
 
 ### Additional information

@@ -7,11 +7,13 @@ to give the device a fully local, self-hosted backend that does **not**
 depend on Petkit's cloud.
 
 Findings are listed from highest to lowest severity. CVSS scores are the
-reporter's estimates; no CVE IDs have been requested yet.
+reporter's estimates. CVE IDs were requested from MITRE on 2026-04-23 —
+see [CVE_SUBMISSIONS.md](CVE_SUBMISSIONS.md) for the submission drafts
+and assignment status.
 
 ---
 
-## F-01 — Unauthenticated Remote Command Execution via HTTP Cloud Channel
+## F-01 — Unauthenticated Remote Device Control via HTTP Command Channel
 
 **Severity:** High · **Estimated CVSS 3.1:** 8.2 (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H)
 **CWE:** [CWE-306](https://cwe.mitre.org/data/definitions/306.html) — Missing
@@ -127,10 +129,13 @@ feeder's need for any external connectivity.
 
 ## Disclosure status
 
-As of the initial public disclosure date, **no vendor contact has been
-attempted**. The findings are documented here for the community and to
-motivate the existence of this project. Users who want CVE IDs assigned
-can submit to MITRE referencing this file.
+CVE IDs were requested from MITRE on 2026-04-23 (see
+[CVE_SUBMISSIONS.md](CVE_SUBMISSIONS.md) for the submission drafts and
+assignment status). The vendor (Petkit Network Technology Co., Ltd.)
+was not contacted prior to public disclosure because no security
+contact, security.txt, or coordinated-disclosure program is published
+by the vendor. Petkit is welcome to engage via this repository's issue
+tracker.
 
 ## Responsible use
 
@@ -141,3 +146,9 @@ Attacks described in F-01 through F-04 are relevant to any attacker who
 can already reach the feeder at the network or BLE level — this document
 merely makes the mechanisms public so users can make informed choices
 about where they deploy their feeder.
+
+## Acknowledgments
+
+Protocol reverse engineering and vulnerability analysis assisted by
+[Claude](https://www.anthropic.com/claude) (Anthropic). Hardware,
+network captures, and validation by [Opcodeffm](https://github.com/Opcodeffm).

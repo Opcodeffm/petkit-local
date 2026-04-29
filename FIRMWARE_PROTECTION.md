@@ -167,5 +167,5 @@ If your feeder's firmware does get updated and breaks the integration:
    you can capture of the new protocol behavior
 2. Don't factory-reset the feeder yet — the old config might still be
    recoverable
-3. Watch the [commit history](https://github.com/Opcodeffm/petkit-feeder-local/commits/main)
+3. Watch the [commit history](https://github.com/Opcodeffm/petkit-local/commits/main)
    — the community may have published a fix
