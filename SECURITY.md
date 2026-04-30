@@ -9,7 +9,10 @@ depend on Petkit's cloud.
 Findings are listed from highest to lowest severity. CVSS scores are the
 reporter's estimates. CVE IDs were requested from MITRE on 2026-04-23 —
 see [CVE_SUBMISSIONS.md](CVE_SUBMISSIONS.md) for the submission drafts
-and assignment status.
+and assignment status. See [LEGAL.md](LEGAL.md) for the project's
+interoperability-first positioning and the statutory context (German
+§§ 69d/69e UrhG, EU Software Directive Art. 6, US DMCA § 1201(f))
+under which this work is published.
 
 ---
 
