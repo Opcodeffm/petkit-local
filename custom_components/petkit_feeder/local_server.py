@@ -1313,20 +1313,27 @@ class PetkitLocalServer:
           feed_id format: r_YYYYMMDD_<ss>_<ss>-<seq>  (ss = seconds since midnight)
         """
         import time as _time
-        # Diagnostic: log a warning when a heartbeat arrives after an
-        # unusually long gap. D4 normally heartbeats every ~11 s; gaps
-        # >60 s typically mean the device was busy (BLE session,
-        # scheduled feed dispense, OTA check) or briefly off network.
-        # Logging the gap helps post-mortem when scheduled feeds miss.
+        # Diagnostic: log when a heartbeat arrives after an unusually
+        # long gap. D4 normally heartbeats every ~11 s. With the BLE
+        # relay (persistent_mode=True) holding the radio for the
+        # fountain, gaps of 90-150 s are routine and expected — every
+        # BLE session blocks the heartbeat for its duration. We only
+        # call out gaps above the coordinator's offline threshold
+        # (180 s) since that's the one that actually means "something
+        # went wrong" rather than "BLE was busy". Lower verbosity
+        # downgraded from WARNING to INFO — these are normal-mode
+        # observations, not user-actionable.
+        _GAP_THRESHOLD_SEC = 180
         if self._last_heartbeat:
             try:
                 prev = datetime.fromisoformat(self._last_heartbeat)
                 gap_sec = (datetime.now(timezone.utc) - prev).total_seconds()
-                if gap_sec > 60:
-                    _LOGGER.warning(
-                        "D4 heartbeat gap of %.0f s (>60 s) — feeder was likely "
-                        "busy or briefly offline; queued feeds delivered now",
-                        gap_sec,
+                if gap_sec > _GAP_THRESHOLD_SEC:
+                    _LOGGER.info(
+                        "D4 heartbeat gap of %.0f s (>%d s) — feeder was "
+                        "likely busy or briefly offline; queued feeds "
+                        "delivered now",
+                        gap_sec, _GAP_THRESHOLD_SEC,
                     )
             except Exception:
                 pass
