@@ -919,13 +919,28 @@ class FountainServer:
                 self._pending_cmds.get(mac, deque()).clear()
                 self._link_state[mac] = LINK_IDLE
                 self._note_connect_failure(mac, reason=f"result={result_i}")
-                # result=6 is "fountain not ready yet" (common right after
-                # a disconnect). Log at info unless it's a different code or
-                # we've failed multiple times in a row — then warn.
+                # Result codes observed on the D4 BLE relay:
+                #   0 — success
+                #   3 — failed (generic; fountain asleep, BLE contention
+                #               with the Petkit phone app, brief out-of-
+                #               range, transient radio errors)
+                #   6 — fountain not ready yet (common right after a
+                #               disconnect, while it re-advertises)
+                # Both 3 and 6 are routine-mode codes for a fountain
+                # cycling through normal sleep/wake. Only escalate to
+                # WARNING after several consecutive failures (~12 min
+                # of unreachability with exponential backoff), which
+                # actually indicates something is wrong (battery dead,
+                # out of range permanently, BLE subsystem hung).
+                _TRANSIENT_RESULTS = {3, 6}
+                _PERSIST_THRESHOLD = 5
                 fail_count = self._connect_fail_count.get(mac, 0)
                 level = (
                     logging.WARNING
-                    if (result_i != 6 or fail_count >= 3)
+                    if (
+                        result_i not in _TRANSIENT_RESULTS
+                        or fail_count >= _PERSIST_THRESHOLD
+                    )
                     else logging.INFO
                 )
                 _LOGGER.log(
