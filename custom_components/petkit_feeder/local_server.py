@@ -1044,8 +1044,22 @@ class PetkitLocalServer:
         if request.host:
             self._own_host = request.host
 
-        # Capture raw body ONCE up front so we can both log it and forward/parse it
-        raw_body = await request.read()
+        # Capture raw body ONCE up front so we can both log it and forward/parse it.
+        # The D4 firmware occasionally RSTs the TCP connection mid-request
+        # (~180/day observed): aggressive socket-close pattern likely from the
+        # ESP32 lwIP stack, possibly correlated with internal heap-watchdog or
+        # BLE-relay context-switches. Not user-actionable — the next heartbeat
+        # comes through cleanly. Suppress aiohttp's default ERROR-level logging
+        # (which spammed 500+ tracebacks per few days) and just return cheaply.
+        try:
+            raw_body = await request.read()
+        except (ConnectionResetError, ConnectionError,
+                asyncio.IncompleteReadError) as e:
+            _LOGGER.debug(
+                "Client %s closed connection mid-request: %s",
+                request.remote, e,
+            )
+            return web.Response(status=200, body=b"")
 
         if CAPTURE_MODE:
             await self._capture_write({
