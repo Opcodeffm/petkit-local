@@ -366,8 +366,33 @@ class PetkitLocalServer:
                 self._last_food_state = int(data["last_food_state"])
             except (ValueError, TypeError):
                 self._last_food_state = None
+        # Restore pending feed queue, dropping items older than the max age
+        # cap. Real scenario: HA restarts while a scheduled 21:00 feed is
+        # waiting for the D4 to come back online — we want that feed to
+        # land. But: if HA was off for 6h, the same item should NOT silently
+        # fire at 03:00 when HA finally comes back. The 1h cap is the
+        # compromise.
+        kept = 0
+        dropped = 0
+        if isinstance(data.get("feed_queue"), list):
+            import time as _t
+            now = _t.time()
+            for item in data["feed_queue"]:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    age = now - float(item.get("queued_at_unix", 0))
+                except (ValueError, TypeError):
+                    age = self.FEED_QUEUE_MAX_AGE_SEC + 1  # treat as expired
+                if 0 <= age <= self.FEED_QUEUE_MAX_AGE_SEC:
+                    self._feed_queue.append(item)
+                    kept += 1
+                else:
+                    dropped += 1
         _LOGGER.info(
-            "Restored persistent state: firmware=%s, ssid=%s, rsq=%s, desiccant_reset=%s, feed_days=%d, food_dispensed=%dg/%dg",
+            "Restored persistent state: firmware=%s, ssid=%s, rsq=%s, "
+            "desiccant_reset=%s, feed_days=%d, food_dispensed=%dg/%dg, "
+            "feed_queue=%d kept (%d dropped as stale)",
             self._device_info.get("firmware"),
             self._device_state.get("wifi", {}).get("ssid"),
             self._device_state.get("wifi", {}).get("rsq"),
@@ -375,6 +400,7 @@ class PetkitLocalServer:
             len(self._daily_feeds),
             self._food_dispensed_since_refill_g,
             self._food_tank_capacity_g,
+            kept, dropped,
         )
 
     def get_persistent_state(self) -> dict:
@@ -393,6 +419,9 @@ class PetkitLocalServer:
             "food_dispensed_since_refill_g": self._food_dispensed_since_refill_g,
             "food_refill_at": self._food_refill_at,
             "last_food_state": self._last_food_state,
+            # Pending feeds awaiting delivery to the D4. Persisted with their
+            # original queued_at_unix so we can age-prune at load time.
+            "feed_queue": list(self._feed_queue),
         }
 
     # ------------------------------------------------------------------
@@ -439,13 +468,32 @@ class PetkitLocalServer:
         today = datetime.now().strftime("%Y%m%d")
         return self._daily_feeds.get(today, [])
 
+    # Queued feeds older than this are silently dropped on load instead of
+    # being delivered. Prevents "zombie feeds" if HA was offline for hours
+    # and the queued schedule item is no longer relevant — e.g. the
+    # scheduled 21:00 feed should NOT trigger when HA finally comes back
+    # the next morning. 1h is a tight cap that still tolerates the
+    # realistic restart-during-busy-D4 race we're fixing.
+    FEED_QUEUE_MAX_AGE_SEC = 3600
+
     def queue_feed(self, amount: int) -> None:
-        """Queue a manual feed command."""
+        """Queue a manual feed command for delivery on the next heartbeat.
+
+        The queue survives HA restarts: items carry an absolute UNIX
+        timestamp `queued_at_unix` and are persisted via
+        get_persistent_state().  On reload, items older than
+        FEED_QUEUE_MAX_AGE_SEC are dropped (see load_persistent_state).
+        """
+        import time as _t
         self._feed_queue.append({
             "amount": amount,
-            "time": self._now_seconds(),
+            "time": self._now_seconds(),         # seconds-of-day, used by some downstream code paths
+            "queued_at_unix": _t.time(),         # absolute time, used for age-based pruning
         })
         _LOGGER.info("Feed queued: %d grams", amount)
+        # Persist immediately — if HA crashes/restarts before the D4
+        # heartbeat picks this up, we still want the feed to land.
+        self._persist()
 
     def set_schedule_test(self, delay_seconds: int, amount: int) -> None:
         """TEST: set a schedule entry at now+delay_seconds for all 7 days."""
